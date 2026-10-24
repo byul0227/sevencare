@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>세븐케어 — 초고령견 케어 앱 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg-page: #EEF2ED;
+    --bg-card: #FFFFFF;
+    --bg-sunk: #F5F7F4;
+    --pine-900: #1F3128;
+    --pine-700: #33473C;
+    --pine-500: #5C7268;
+    --pine-300: #9AABA1;
+    --gold-600: #B57A3D;
+    --gold-500: #C98A4B;
+    --gold-100: #F2E4D1;
+    --rust-600: #A2532F;
+    --rust-100: #F3E1D6;
+    --sage-line: #DCE4DD;
+    --white: #FFFFFF;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg-page);
+    font-family:'Inter', -apple-system, sans-serif;
+    color:var(--pine-900);
+    display:flex;
+    justify-content:center;
+    padding:48px 16px;
+    min-height:100vh;
+  }
+  h1,h2,h3{ font-family:'Source Serif 4', serif; font-weight:600; margin:0; }
+  .phone{
+    width:390px;
+    background:var(--bg-page);
+    border-radius:36px;
+    border:1px solid #DCE4DD;
+    box-shadow:0 24px 60px rgba(31,49,40,0.14);
+    overflow:hidden;
+    position:relative;
+  }
+  .statusbar{
+    height:20px;
+  }
+  .screen{
+    min-height:620px;
+    display:none;
+    flex-direction:column;
+  }
+  .screen.active{ display:flex; }
+
+  /* ---------- shared bits ---------- */
+  .topbar{
+    display:flex; align-items:center; gap:10px;
+    padding:22px 22px 4px;
+  }
+  .topbar h1{ font-size:22px; }
+  .back{
+    width:32px; height:32px; border-radius:50%;
+    border:none; background:var(--bg-sunk);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; flex-shrink:0;
+  }
+  .back svg{ width:16px; height:16px; }
+  .section-label{
+    font-size:13px; color:var(--pine-500); margin:20px 22px 10px;
+  }
+  .card{
+    background:var(--bg-card);
+    border-radius:16px;
+    border:1px solid var(--sage-line);
+    padding:16px;
+  }
+
+  /* ---------- home ---------- */
+  .home-head{ padding:24px 22px 6px; }
+  .home-head .date{ font-size:13px; color:var(--pine-500); }
+  .home-head h1{ font-size:24px; margin-top:6px; line-height:1.3; }
+
+  .pet-strip{
+    margin:16px 22px 4px;
+    display:flex; align-items:center; gap:12px;
+    background:var(--gold-100);
+    border-radius:16px; padding:14px 16px;
+  }
+  .pet-avatar{
+    width:46px; height:46px; border-radius:50%;
+    background:var(--gold-500);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .pet-avatar svg{ width:24px; height:24px; stroke:white; }
+  .pet-strip .name{ font-size:14px; font-weight:600; }
+  .pet-strip .sub{ font-size:12px; color:var(--pine-500); margin-top:2px; }
+
+  .log-grid{
+    display:grid; grid-template-columns:1fr 1fr;
+    gap:10px; padding:0 22px;
+  }
+  .log-btn{
+    display:flex; align-items:center; gap:10px;
+    background:var(--bg-card);
+    border:1px solid var(--sage-line);
+    border-radius:14px;
+    padding:14px;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px; font-weight:500;
+    color:var(--pine-900);
+    cursor:pointer;
+    transition:border-color .15s;
+  }
+  .log-btn:hover{ border-color:var(--gold-500); }
+  .log-btn svg{ width:20px; height:20px; stroke:var(--gold-600); flex-shrink:0; }
+
+  .today-list{ padding:0 22px 28px; display:flex; flex-direction:column; gap:8px; }
+  .row-item{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:13.5px; padding:12px 14px;
+    background:var(--bg-card); border:1px solid var(--sage-line); border-radius:12px;
+  }
+  .row-item .meta{ color:var(--pine-500); font-size:12.5px; }
+  .empty-hint{
+    font-size:13px; color:var(--pine-500);
+    padding:18px 14px; text-align:center;
+    background:var(--bg-sunk); border-radius:12px;
+  }
+
+  /* ---------- bottom nav ---------- */
+  .tabbar{
+    display:flex; border-top:1px solid var(--sage-line);
+    background:var(--bg-card);
+  }
+  .tab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:12px 0 14px; border:none; background:none; cursor:pointer;
+    color:var(--pine-500); font-family:'Inter',sans-serif; font-size:11px;
+  }
+  .tab svg{ width:20px; height:20px; }
+  .tab.active{ color:var(--gold-600); }
+
+  /* ---------- report ---------- */
+  .alert-banner{
+    margin:14px 22px; padding:14px 16px;
+    background:var(--rust-100); border-radius:14px;
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .alert-banner svg{ width:18px; height:18px; stroke:var(--rust-600); flex-shrink:0; margin-top:1px; }
+  .alert-banner p{ margin:0; font-size:13px; color:var(--rust-600); line-height:1.55; }
+
+  .chart-card{ margin:0 22px 14px; }
+  .chart-card .label{ font-size:13px; color:var(--pine-500); margin-bottom:10px; }
+  .chart-axis{ display:flex; justify-content:space-between; font-size:11px; color:var(--pine-300); margin-top:6px; }
+
+  .stat-grid{ margin:0 22px 14px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .stat-card{ background:var(--bg-sunk); border-radius:14px; padding:14px; }
+  .stat-card .label{ font-size:12.5px; color:var(--pine-500); }
+  .stat-card .value{ font-size:26px; font-weight:600; font-family:'Source Serif 4',serif; margin-top:4px; }
+
+  .primary-btn{
+    width:100%; background:var(--pine-900); color:white; border:none;
+    border-radius:14px; padding:15px; font-family:'Inter',sans-serif;
+    font-size:14.5px; font-weight:600; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; gap:8px;
+  }
+  .primary-btn svg{ width:17px; height:17px; stroke:white; }
+
+  /* ---------- profile ---------- */
+  .profile-hero{
+    margin:14px 22px; background:var(--bg-card); border:1px solid var(--sage-line);
+    border-radius:16px; padding:22px; text-align:center;
+  }
+  .profile-hero .avatar-lg{
+    width:68px; height:68px; border-radius:50%; background:var(--gold-500);
+    display:flex; align-items:center; justify-content:center; margin:0 auto 12px;
+  }
+  .profile-hero .avatar-lg svg{ width:34px; height:34px; stroke:white; }
+  .profile-hero .pname{ font-family:'Source Serif 4',serif; font-size:19px; font-weight:600; }
+  .profile-hero .pmeta{ font-size:13px; color:var(--pine-500); margin-top:3px; }
+
+  .info-card{ margin:0 22px 24px; background:var(--bg-card); border:1px solid var(--sage-line); border-radius:16px; padding:4px 16px; }
+  .info-row{ display:flex; justify-content:space-between; padding:13px 0; font-size:13.5px; border-bottom:1px solid var(--sage-line); }
+  .info-row:last-child{ border-bottom:none; }
+  .info-row .k{ color:var(--pine-500); }
+  .info-row .v{ font-weight:500; }
+
+  /* ---------- input forms ---------- */
+  .form-body{ padding:8px 22px 20px; display:flex; flex-direction:column; gap:18px; flex:1; }
+  .field-label{ font-size:13px; color:var(--pine-500); margin:0 0 8px; }
+  .chip-row{ display:grid; gap:8px; }
+  .chip{
+    font-family:'Inter',sans-serif; font-size:13px; padding:11px 6px; text-align:center;
+    border-radius:11px; border:1px solid var(--sage-line); background:var(--bg-card);
+    cursor:pointer; color:var(--pine-900);
+  }
+  .chip.active{ background:var(--gold-100); border-color:var(--gold-500); color:var(--gold-600); font-weight:600; }
+  input[type="time"], input[type="number"]{
+    width:100%; font-family:'Inter',sans-serif; font-size:14px;
+    padding:11px 12px; border-radius:11px; border:1px solid var(--sage-line);
+    background:var(--bg-card); color:var(--pine-900);
+  }
+  textarea{
+    width:100%; resize:none; font-family:'Inter',sans-serif; font-size:14px;
+    padding:11px 12px; border-radius:11px; border:1px solid var(--sage-line);
+    background:var(--bg-card); color:var(--pine-900);
+  }
+  .error-text{ display:none; font-size:12.5px; color:var(--rust-600); margin:-10px 0 0; }
+  .unit-row{ display:flex; align-items:center; gap:10px; }
+  .unit-row span{ font-size:13px; color:var(--pine-500); }
+
+  .toast{
+    position:absolute; left:22px; right:22px; bottom:96px;
+    background:var(--pine-900); color:white; padding:13px 16px;
+    border-radius:12px; font-size:13px; display:flex; align-items:center; gap:8px;
+    opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s;
+    pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+  .toast svg{ width:16px; height:16px; stroke:white; flex-shrink:0; }
+
+  .caption{
+    text-align:center; font-size:12px; color:var(--pine-500);
+    margin-top:16px; font-family:'Inter',sans-serif;
+  }
+
+  .care-card{ background:var(--bg-card); border:1px solid var(--sage-line); border-radius:14px; padding:14px 16px; cursor:pointer; }
+  .care-card-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .care-title{ font-size:14.5px; font-weight:600; }
+  .care-badge{ font-size:11px; color:var(--pine-500); background:var(--bg-sunk); padding:4px 9px; border-radius:20px; white-space:nowrap; }
+  .care-desc{ font-size:12.5px; color:var(--pine-500); margin:6px 0 0; line-height:1.5; }
+
+  .med-row{ display:flex; align-items:center; gap:10px; font-size:13.5px; background:var(--bg-card); border:1px solid var(--sage-line); border-radius:12px; padding:12px 14px; }
+  .med-row input{ width:17px; height:17px; accent-color:#C98A4B; }
+
+  .toggle-chip{ display:flex; align-items:center; justify-content:space-between; font-size:13.5px; padding:12px 14px; border-radius:12px; border:1px solid var(--sage-line); background:var(--bg-card); cursor:pointer; }
+  .toggle-chip input{ width:18px; height:18px; accent-color:#C98A4B; flex-shrink:0; }
+
+  .slider-row{ display:flex; flex-direction:column; gap:8px; }
+  .slider-row .top{ display:flex; justify-content:space-between; font-size:13px; }
+  .slider-row .top .val{ font-weight:600; color:var(--gold-600); }
+  input[type="range"]{ width:100%; accent-color:#C98A4B; }
+
+  .timeline{ display:flex; flex-direction:column; gap:0; }
+  .timeline-item{ display:flex; gap:12px; padding:2px 0 18px; position:relative; }
+  .timeline-item:last-child{ padding-bottom:2px; }
+  .timeline-dot{ width:8px; height:8px; border-radius:50%; background:var(--gold-500); margin-top:5px; flex-shrink:0; position:relative; }
+  .timeline-item:not(:last-child) .timeline-dot::after{ content:''; position:absolute; top:12px; left:3px; width:1px; height:100%; background:var(--sage-line); }
+  .timeline-date{ font-size:11.5px; color:var(--pine-500); margin:0; }
+  .timeline-title{ font-size:13.5px; font-weight:500; margin:2px 0 0; }
+  .timeline-note{ font-size:12.5px; color:var(--pine-500); margin:2px 0 0; }
+
+  .chat-bubble{ max-width:80%; font-size:13px; padding:11px 14px; border-radius:16px; line-height:1.5; }
+  .chat-bubble.ai{ align-self:flex-start; background:var(--bg-sunk); color:var(--pine-900); border-bottom-left-radius:4px; }
+  .chat-bubble.user{ align-self:flex-end; background:var(--gold-500); color:white; border-bottom-right-radius:4px; }
+
+  .pet-switch-item{ display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--bg-card); border:1px solid var(--sage-line); border-radius:14px; cursor:pointer; width:100%; text-align:left; }
+  .pet-switch-item.active{ border-color:var(--gold-500); background:var(--gold-100); }
+</style>
+</head>
+<body>
+
+<div>
+<div class="phone">
+
+  <!-- ============ HOME ============ -->
+  <div class="screen active" id="screen-home">
+    <div class="home-head">
+      <p class="date">2026년 9월 11일 금요일</p>
+      <h1 id="home-greeting">초코, 오늘도 잘 지내고 있나요?</h1>
+    </div>
+
+    <button type="button" class="pet-strip" id="pet-strip-btn" onclick="openPetSwitcher()" style="width:calc(100% - 44px); text-align:left; border:none; cursor:pointer;">
+      <div class="pet-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg>
+      </div>
+      <div style="flex:1;">
+        <p class="name" id="home-pet-name">초코 · 골든리트리버 · 14세</p>
+        <p class="sub" id="home-pet-sub">최근 체중 24.1kg</p>
+      </div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#5C7268" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+
+    <p class="section-label">오늘 기록하기</p>
+    <div class="log-grid">
+      <button class="log-btn" onclick="openForm('meal')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+        식사량
+      </button>
+      <button class="log-btn" onclick="openForm('poop')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69s-5 5.6-5 9.31a5 5 0 0 0 10 0c0-3.71-5-9.31-5-9.31Z"/></svg>
+        배변
+      </button>
+      <button class="log-btn" onclick="openForm('weight')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        체중
+      </button>
+      <button class="log-btn" onclick="openForm('med')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+        투약
+      </button>
+    </div>
+
+    <p class="section-label">오늘의 기록</p>
+    <div class="today-list" id="today-list">
+      <div class="row-item"><span>아침 식사</span><span class="meta">완료 · 8:10</span></div>
+      <div class="row-item"><span>관절 영양제</span><span class="meta">복용 · 9:00</span></div>
+    </div>
+  </div>
+
+  <!-- ============ PET SWITCHER SHEET ============ -->
+  <div id="pet-switcher-overlay" style="display:none; position:absolute; inset:0; background:rgba(31,49,40,0.35); z-index:30; align-items:flex-end;" onclick="if(event.target===this) closePetSwitcher();">
+    <div style="background:var(--bg-page); width:100%; border-radius:20px 20px 0 0; padding:18px 20px 24px;">
+      <p style="font-size:13px; color:var(--pine-500); margin:0 0 12px; text-align:center;">보고 있는 펫 전환</p>
+      <div id="pet-switcher-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <button class="chip" style="width:100%; margin-top:10px;" onclick="closePetSwitcher()">닫기</button>
+    </div>
+  </div>
+
+  <!-- ============ REPORT ============ -->
+  <div class="screen" id="screen-report">
+    <div class="topbar"><h1>건강 리포트</h1></div>
+    <p class="section-label" style="margin-top:2px;">최근 4주 추이</p>
+
+    <div class="alert-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p>최근 3일간 식사량이 평소보다 30% 줄었어요. 관찰이 필요해요.</p>
+    </div>
+
+    <div class="card chart-card">
+      <p class="label">체중 추이 (kg)</p>
+      <svg viewBox="0 0 320 90" style="width:100%;height:90px;overflow:visible;">
+        <polyline points="0,30 70,26 140,36 210,44 280,58 320,62" fill="none" stroke="#C98A4B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="320" cy="62" r="4" fill="#B57A3D"/>
+      </svg>
+      <div class="chart-axis"><span>4주 전</span><span>3주 전</span><span>2주 전</span><span>1주 전</span><span>이번주</span></div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><p class="label">평균 식사량</p><p class="value">72%</p></div>
+      <div class="stat-card"><p class="label">배변 정상 비율</p><p class="value">92%</p></div>
+    </div>
+
+    <div style="padding:4px 22px 20px; margin-top:auto;">
+      <button class="primary-btn" onclick="showToast('리포트를 준비하고 있어요')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        병원 지참용 리포트 내보내기
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ PET LIST ============ -->
+  <div class="screen" id="screen-pet-list">
+    <div class="topbar"><h1>마이펫</h1></div>
+    <div id="pet-list-cards" style="padding:2px 22px 8px; display:flex; flex-direction:column; gap:10px;">
+      <div class="care-card" onclick="viewPet('choco')">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="pet-avatar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg></div>
+          <div>
+            <p class="name">초코</p>
+            <p class="sub">골든리트리버 · 14세 · 수컷</p>
+          </div>
+        </div>
+      </div>
+      <div class="care-card" onclick="viewPet('bori')">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="pet-avatar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg></div>
+          <div>
+            <p class="name">보리</p>
+            <p class="sub">말티즈 · 11세 · 암컷(중성화)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:6px 22px 20px;">
+      <button class="log-btn" style="width:100%; justify-content:center; gap:8px; border-style:dashed; color:var(--gold-600);" onclick="openPetForm('add')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#B57A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        펫 등록하기
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ PET DETAIL ============ -->
+  <div class="screen" id="screen-pet-detail">
+    <div class="topbar" style="justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>펫 정보</h1>
+      </div>
+      <button class="chip" style="padding:8px 14px;" onclick="openPetForm('edit')">수정</button>
+    </div>
+    <div class="profile-hero">
+      <div class="avatar-lg">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg>
+      </div>
+      <p class="pname" id="detail-name">초코</p>
+      <p class="pmeta" id="detail-meta">골든리트리버 · 14세 · 수컷</p>
+    </div>
+    <div class="info-card">
+      <div class="info-row"><span class="k">현재 체중</span><span class="v" id="detail-weight">24.1kg</span></div>
+      <div class="info-row"><span class="k">기저 질환</span><span class="v" id="detail-condition">슬개골 탈구 2기</span></div>
+      <div class="info-row"><span class="k">복용 중인 약</span><span class="v" id="detail-med">관절 영양제</span></div>
+      <div class="info-row"><span class="k">담당 병원</span><span class="v" id="detail-hospital">노원동물병원</span></div>
+    </div>
+
+    <p class="section-label">병원 방문 기록</p>
+    <div class="info-card" style="padding:16px;">
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div>
+            <p class="timeline-date">2026.08.02</p>
+            <p class="timeline-title">슬개골 탈구 2기 진단</p>
+            <p class="timeline-note">노원동물병원 · 관절 영양제 처방 시작</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div>
+            <p class="timeline-date">2026.06.15</p>
+            <p class="timeline-title">정기 혈액검사</p>
+            <p class="timeline-note">신장 수치 경계 · 저염식 권장</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div>
+            <p class="timeline-date">2026.03.10</p>
+            <p class="timeline-title">예방접종 · 건강검진</p>
+            <p class="timeline-note">전반적으로 양호</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PET FORM (등록/수정) ============ -->
+  <div class="screen" id="screen-pet-form">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1 id="pet-form-title">펫 등록하기</h1>
+    </div>
+    <div class="form-body">
+      <div>
+        <p class="field-label">이름</p>
+        <input type="text" id="pf-name" placeholder="예: 초코" />
+      </div>
+      <div>
+        <p class="field-label">품종</p>
+        <input type="text" id="pf-breed" placeholder="예: 골든리트리버" />
+      </div>
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1;">
+          <p class="field-label">나이</p>
+          <input type="text" id="pf-age" placeholder="예: 14세" />
+        </div>
+        <div style="flex:1;">
+          <p class="field-label">체중</p>
+          <div class="unit-row"><input type="number" id="pf-weight" placeholder="24.1" step="0.1" /><span>kg</span></div>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">성별</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr;">
+          <button class="chip active" data-g="pfgender" onclick="pick(this)">수컷</button>
+          <button class="chip" data-g="pfgender" onclick="pick(this)">암컷</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">기저 질환 (선택)</p>
+        <input type="text" id="pf-condition" placeholder="예: 슬개골 탈구 2기, 없으면 비워두세요" />
+      </div>
+      <div>
+        <p class="field-label">담당 병원 (선택)</p>
+        <input type="text" id="pf-hospital" placeholder="예: 노원동물병원" />
+      </div>
+      <p class="error-text" id="pet-form-error">이름과 품종을 입력해 주세요.</p>
+      <button class="primary-btn" onclick="savePetForm()">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ CARE HUB ============ -->
+  <div class="screen" id="screen-care">
+    <div class="topbar"><h1>케어 체크</h1></div>
+    <p class="section-label" style="margin-top:2px;">노령견 특화 관찰 기록</p>
+
+    <div style="padding:0 22px; display:flex; flex-direction:column; gap:12px;">
+      <div class="care-card" onclick="openForm('mobility','screen-care')">
+        <div class="care-card-top">
+          <span class="care-title">거동 체크</span>
+          <span class="care-badge" id="mobility-badge">오늘 미기록</span>
+        </div>
+        <p class="care-desc">기상 · 계단 · 절뚝거림 · 활동량을 매일 체크해요</p>
+      </div>
+
+      <div class="care-card" onclick="openForm('cognitive','screen-care')">
+        <div class="care-card-top">
+          <span class="care-title">인지기능 체크</span>
+          <span class="care-badge" id="cognitive-badge">이번 주 미기록</span>
+        </div>
+        <p class="care-desc">배회 · 야간 짖음 · 방향감각 상실 등 주간 관찰</p>
+      </div>
+
+      <div class="care-card" onclick="openForm('qol','screen-care')">
+        <div class="care-card-top">
+          <span class="care-title">삶의 질 평가</span>
+          <span class="care-badge" id="qol-badge">이번 달 미기록</span>
+        </div>
+        <p class="care-desc">통증 · 식욕 · 위생 · 행복감 등 7개 항목 평가</p>
+      </div>
+    </div>
+
+    <p class="section-label">오늘의 약물 스케줄</p>
+    <div class="alert-banner" style="margin:0 22px 12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p>관절 영양제와 진통제 복용 간격이 30분으로 짧아요. 수의사와 간격 조정을 상담해 보세요.</p>
+    </div>
+    <div style="padding:0 22px 28px; display:flex; flex-direction:column; gap:8px;">
+      <label class="med-row"><input type="checkbox" checked /> 관절 영양제 · 09:00</label>
+      <label class="med-row"><input type="checkbox" /> 진통제 · 09:30</label>
+      <label class="med-row"><input type="checkbox" /> 심장약 · 19:00</label>
+    </div>
+  </div>
+
+  <!-- ============ AI 건강 HUB ============ -->
+  <div class="screen" id="screen-ai">
+    <div class="topbar"><h1>AI 건강</h1></div>
+    <p class="section-label" style="margin-top:2px;">초코의 기록을 참고하는 AI 건강 도우미</p>
+
+    <div style="padding:0 22px; display:flex; flex-direction:column; gap:12px;">
+      <div class="care-card" onclick="goSub('screen-ai-chat')">
+        <div class="care-card-top">
+          <span class="care-title">AI 건강 상담</span>
+          <span class="care-badge">채팅</span>
+        </div>
+        <p class="care-desc">증상을 이야기하면 초코의 최근 기록을 참고해 답변해줘요</p>
+      </div>
+
+      <div class="care-card" onclick="goSub('screen-ai-bmi')">
+        <div class="care-card-top">
+          <span class="care-title">비만도 체크</span>
+          <span class="care-badge">자동 계산</span>
+        </div>
+        <p class="care-desc">기록된 체중과 품종 표준 체중을 비교해 자동으로 알려드려요</p>
+      </div>
+
+      <div class="care-card" onclick="goSub('screen-ai-search')">
+        <div class="care-card-top">
+          <span class="care-title">증상 · 품종 정보 검색</span>
+          <span class="care-badge">검색</span>
+        </div>
+        <p class="care-desc">노령견에게 흔한 증상과 골든리트리버 주의 질환을 찾아봐요</p>
+      </div>
+
+      <div class="care-card" onclick="goSub('screen-ai-vet')">
+        <div class="care-card-top">
+          <span class="care-title">내 주변 동물병원</span>
+          <span class="care-badge">지도</span>
+        </div>
+        <p class="care-desc">가까운 병원을 찾고 바로 전화 걸어요</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ AI 건강상담 채팅 ============ -->
+  <div class="screen" id="screen-ai-chat">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>AI 건강 상담</h1>
+    </div>
+    <div id="chat-list" style="flex:1; padding:6px 22px; display:flex; flex-direction:column; gap:10px; overflow-y:auto;">
+      <div class="chat-bubble ai">안녕하세요! 초코의 최근 기록을 참고해서 답변드릴게요. 어떤 점이 궁금하세요?</div>
+    </div>
+    <div style="display:flex; gap:8px; padding:12px 22px 20px;">
+      <input type="text" id="chat-input" placeholder="예: 요즘 계단을 잘 못 올라가요" style="flex:1; font-family:'Inter',sans-serif; font-size:13.5px; padding:11px 14px; border-radius:20px; border:1px solid var(--sage-line); background:var(--bg-card);" />
+      <button onclick="sendChat()" style="width:42px; height:42px; border-radius:50%; background:var(--pine-900); border:none; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ 비만도 체크 (체중 기반) ============ -->
+  <div class="screen" id="screen-ai-bmi">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>비만도 체크</h1>
+    </div>
+    <div class="form-body">
+      <p class="field-label" style="margin:-6px 0 0;">최근 기록된 체중과 품종 표준 체중을 비교했어요</p>
+
+      <div class="card" style="background:var(--bg-sunk); border:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <p style="font-size:12.5px; color:var(--pine-500); margin:0;">현재 체중</p>
+            <p style="font-family:'Cambria',serif; font-size:22px; font-weight:600; margin:4px 0 0;">24.1kg</p>
+          </div>
+          <div style="text-align:right;">
+            <p style="font-size:12.5px; color:var(--pine-500); margin:0;">골든리트리버 표준</p>
+            <p style="font-size:14px; font-weight:500; margin:4px 0 0;">25 ~ 34kg</p>
+          </div>
+        </div>
+        <div style="margin-top:14px; height:8px; border-radius:6px; background:var(--sage-line); position:relative; overflow:hidden;">
+          <div style="position:absolute; left:0; top:0; bottom:0; width:78%; background:var(--gold-500); border-radius:6px;"></div>
+        </div>
+        <p style="font-size:11px; color:var(--pine-300); margin:6px 0 0;">표준 범위 하단</p>
+      </div>
+
+      <div class="card" style="background:var(--gold-100); border:none;">
+        <p style="font-family:'Cambria',serif; font-size:16px; font-weight:600; margin:0; color:var(--gold-600);">표준 범위 하단 · 약간 마른 편</p>
+        <p style="font-size:12.5px; color:var(--text-secondary); margin:8px 0 0; line-height:1.5;">품종 표준 체중의 최저값에 가까워요. 최근 식사량 감소 기록과 함께 보면, 식욕이 계속 줄어들지 않는지 지켜봐 주세요.</p>
+      </div>
+
+      <p style="font-size:11.5px; color:var(--pine-300); margin:0;">※ 품종별 표준 체중 범위를 기준으로 한 참고 정보이며, 근육량 등 개체 차이는 반영되지 않아요.</p>
+    </div>
+  </div>
+
+  <!-- ============ 증상·품종 검색 ============ -->
+  <div class="screen" id="screen-ai-search">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>정보 검색</h1>
+    </div>
+    <div style="padding:0 22px 8px; display:flex; gap:8px;">
+      <button class="chip active" data-g="searchtab" onclick="switchSearch(this,'symptom')" style="flex:1;">증상별</button>
+      <button class="chip" data-g="searchtab" onclick="switchSearch(this,'breed')" style="flex:1;">품종별</button>
+    </div>
+
+    <div id="search-symptom" style="padding:10px 22px 20px; display:flex; flex-direction:column; gap:8px;">
+      <button class="log-btn" style="width:100%;" onclick="showSearchResult('기침이 잦고 밤에 심해져요.')">기침</button>
+      <button class="log-btn" style="width:100%;" onclick="showSearchResult('물을 많이 마시고 소변 횟수가 늘었어요. 신장 기능 저하와 관련 있을 수 있어요.')">잦은 배뇨 · 음수량 증가</button>
+      <button class="log-btn" style="width:100%;" onclick="showSearchResult('평소 좋아하던 사료도 잘 안 먹는다면 구강 통증이나 소화기 문제를 의심해볼 수 있어요.')">식욕 부진</button>
+      <button class="log-btn" style="width:100%;" onclick="showSearchResult('한쪽 다리를 계속 절뚝인다면 관절 · 인대 문제일 가능성이 있어요.')">다리 절뚝임</button>
+      <button class="log-btn" style="width:100%;" onclick="showSearchResult('눈이 뿌옇게 흐려 보인다면 백내장 등 노령성 안질환을 의심해볼 수 있어요.')">눈 흐림</button>
+    </div>
+
+    <div id="search-breed" style="display:none; padding:10px 22px 20px; flex-direction:column; gap:8px;">
+      <div class="card" style="background:var(--bg-sunk); border:none; margin-bottom:4px;">
+        <p style="font-size:13px; margin:0;">초코의 품종</p>
+        <p style="font-family:'Cambria',serif; font-size:16px; font-weight:600; margin:4px 0 0;">골든리트리버</p>
+      </div>
+      <div class="row-item"><span>고관절 · 슬개골 이형성증</span><span class="meta">주의</span></div>
+      <div class="row-item"><span>심장 질환 (확장성 심근병증)</span><span class="meta">주의</span></div>
+      <div class="row-item"><span>림프종 등 종양성 질환</span><span class="meta">주의</span></div>
+      <div class="row-item"><span>피부 알레르기</span><span class="meta">보통</span></div>
+    </div>
+
+    <div id="search-result" style="display:none; margin:0 22px 20px; padding:14px 16px; background:var(--gold-100); border-radius:12px;">
+      <p id="search-result-text" style="font-size:13px; color:var(--gold-600); margin:0; line-height:1.55;"></p>
+    </div>
+  </div>
+
+  <!-- ============ 내 주변 동물병원 ============ -->
+  <div class="screen" id="screen-ai-vet">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>내 주변 동물병원</h1>
+    </div>
+    <div style="padding:6px 22px 20px; display:flex; flex-direction:column; gap:10px;">
+      <div class="card">
+        <p style="font-weight:600; font-size:14px; margin:0;">노원동물병원</p>
+        <p style="font-size:12px; color:var(--pine-500); margin:4px 0 10px;">0.4km · 서울 노원구 · 초코 담당 병원</p>
+        <div style="display:flex; gap:8px;">
+          <button class="chip active" style="flex:1;">전화</button>
+          <button class="chip" style="flex:1;">지도 보기</button>
+        </div>
+      </div>
+      <div class="card">
+        <p style="font-weight:600; font-size:14px; margin:0;">24시 서울동물메디컬센터</p>
+        <p style="font-size:12px; color:var(--pine-500); margin:4px 0 10px;">1.1km · 서울 노원구</p>
+        <div style="display:flex; gap:8px;">
+          <button class="chip" style="flex:1;">전화</button>
+          <button class="chip" style="flex:1;">지도 보기</button>
+        </div>
+      </div>
+      <div class="card">
+        <p style="font-weight:600; font-size:14px; margin:0;">상계 힐링동물병원</p>
+        <p style="font-size:12px; color:var(--pine-500); margin:4px 0 10px;">1.6km · 서울 노원구</p>
+        <div style="display:flex; gap:8px;">
+          <button class="chip" style="flex:1;">전화</button>
+          <button class="chip" style="flex:1;">지도 보기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 거동 체크 ============ -->
+  <div class="screen" id="screen-form-mobility">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>거동 체크</h1>
+    </div>
+    <div class="form-body">
+      <div>
+        <p class="field-label">아침에 일어나는 데</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip active" data-g="m1" data-good="1" onclick="pick(this)">바로 일어남</button>
+          <button class="chip" data-g="m1" onclick="pick(this)">약간 걸림</button>
+          <button class="chip" data-g="m1" onclick="pick(this)">많이 힘들어함</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">계단 오르내리기</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip active" data-g="m2" data-good="1" onclick="pick(this)">수월함</button>
+          <button class="chip" data-g="m2" onclick="pick(this)">주저함</button>
+          <button class="chip" data-g="m2" onclick="pick(this)">못 함</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">산책 중 절뚝거림</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip active" data-g="m3" data-good="1" onclick="pick(this)">없음</button>
+          <button class="chip" data-g="m3" onclick="pick(this)">가끔</button>
+          <button class="chip" data-g="m3" onclick="pick(this)">자주</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">오늘 활동량</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip active" data-g="m4" data-good="1" onclick="pick(this)">평소와 같음</button>
+          <button class="chip" data-g="m4" onclick="pick(this)">감소</button>
+          <button class="chip" data-g="m4" onclick="pick(this)">거의 없음</button>
+        </div>
+      </div>
+      <button class="primary-btn" onclick="saveMobility()">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 인지기능 체크 ============ -->
+  <div class="screen" id="screen-form-cognitive">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>인지기능 체크</h1>
+    </div>
+    <div class="form-body">
+      <p class="field-label" style="margin:-6px 0 4px;">이번 주 관찰된 항목을 모두 선택하세요</p>
+      <label class="toggle-chip"><span>밤에 배회함</span><input type="checkbox" data-cog /></label>
+      <label class="toggle-chip"><span>익숙한 공간에서 길을 잃음</span><input type="checkbox" data-cog /></label>
+      <label class="toggle-chip"><span>이유 없이 짖음 (특히 야간)</span><input type="checkbox" data-cog /></label>
+      <label class="toggle-chip"><span>가족을 못 알아보는 듯한 행동</span><input type="checkbox" data-cog /></label>
+      <label class="toggle-chip"><span>대소변 실수가 늘어남</span><input type="checkbox" data-cog /></label>
+      <button class="primary-btn" onclick="saveCognitive()">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 삶의 질 평가 ============ -->
+  <div class="screen" id="screen-form-qol">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>삶의 질 평가</h1>
+    </div>
+    <div class="form-body">
+      <p class="field-label" style="margin:-6px 0 4px;">각 항목을 1~10점으로 평가해 주세요</p>
+      <div class="slider-row">
+        <div class="top"><span>통증 조절</span><span class="val" id="qol-1-val">7</span></div>
+        <input type="range" min="1" max="10" value="7" id="qol-1" oninput="document.getElementById('qol-1-val').textContent=this.value" />
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>식욕</span><span class="val" id="qol-2-val">7</span></div>
+        <input type="range" min="1" max="10" value="7" id="qol-2" oninput="document.getElementById('qol-2-val').textContent=this.value" />
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>수분 섭취</span><span class="val" id="qol-3-val">8</span></div>
+        <input type="range" min="1" max="10" value="8" id="qol-3" oninput="document.getElementById('qol-3-val').textContent=this.value" />
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>위생 상태</span><span class="val" id="qol-4-val">8</span></div>
+        <input type="range" min="1" max="10" value="8" id="qol-4" oninput="document.getElementById('qol-4-val').textContent=this.value" />
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>행복감</span><span class="val" id="qol-5-val">7</span></div>
+        <input type="range" min="1" max="10" value="7" id="qol-5" oninput="document.getElementById('qol-5-val').textContent=this.value" />
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>거동 능력</span><span class="val" id="qol-6-val">6</span></div>
+        <input type="range" min="1" max="10" value="6" id="qol-6" oninput="document.getElementById('qol-6-val').textContent=this.value" />
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>좋은 날의 비율</span><span class="val" id="qol-7-val">7</span></div>
+        <input type="range" min="1" max="10" value="7" id="qol-7" oninput="document.getElementById('qol-7-val').textContent=this.value" />
+      </div>
+      <button class="primary-btn" onclick="saveQol()">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 배변 ============ -->
+  <div class="screen" id="screen-form-poop">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>배변 기록</h1>
+    </div>
+    <div class="form-body">
+      <div>
+        <p class="field-label">시간</p>
+        <input type="time" id="poop-time" value="09:30" />
+      </div>
+      <div>
+        <p class="field-label">굳기</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip" data-g="firm" onclick="pick(this)">무름</button>
+          <button class="chip active" data-g="firm" onclick="pick(this)">정상</button>
+          <button class="chip" data-g="firm" onclick="pick(this)">딱딱함</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">색깔</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <button class="chip active" data-g="color" onclick="pick(this)">갈색</button>
+          <button class="chip" data-g="color" onclick="pick(this)">검붉은색</button>
+          <button class="chip" data-g="color" onclick="pick(this)">회색/노란색</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">혈변 · 점액</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr;">
+          <button class="chip active" data-g="blood" onclick="pick(this)">없음</button>
+          <button class="chip" data-g="blood" onclick="pick(this)">있음</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">특이사항 (선택)</p>
+        <textarea rows="2" placeholder="예: 평소보다 힘들어함, 양이 적음"></textarea>
+      </div>
+      <button class="primary-btn" onclick="saveEntry('poop','배변 활동')">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 식사 ============ -->
+  <div class="screen" id="screen-form-meal">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>식사 기록</h1>
+    </div>
+    <div class="form-body">
+      <div>
+        <p class="field-label">시간</p>
+        <input type="time" id="meal-time" value="08:00" />
+      </div>
+      <div>
+        <p class="field-label">섭취량</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+          <button class="chip" data-g="meal" onclick="pick(this)">거의 안먹음</button>
+          <button class="chip" data-g="meal" onclick="pick(this)">절반</button>
+          <button class="chip active" data-g="meal" onclick="pick(this)">대부분</button>
+          <button class="chip" data-g="meal" onclick="pick(this)">전부</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">특이사항 (선택)</p>
+        <textarea rows="2" placeholder="예: 사료를 오래 씹지 못함"></textarea>
+      </div>
+      <button class="primary-btn" onclick="saveEntry('meal','식사')">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 체중 ============ -->
+  <div class="screen" id="screen-form-weight">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>체중 기록</h1>
+    </div>
+    <div class="form-body">
+      <div>
+        <p class="field-label">측정 체중</p>
+        <div class="unit-row">
+          <input type="number" id="weight-value" placeholder="24.1" step="0.1" />
+          <span>kg</span>
+        </div>
+      </div>
+      <p class="error-text" id="weight-error">체중을 입력해 주세요.</p>
+      <button class="primary-btn" onclick="saveWeight()">저장</button>
+    </div>
+  </div>
+
+  <!-- ============ FORM: 투약 ============ -->
+  <div class="screen" id="screen-form-med">
+    <div class="topbar">
+      <button class="back" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="#1F3128" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <h1>투약 기록</h1>
+    </div>
+    <div class="form-body">
+      <div>
+        <p class="field-label">약 종류</p>
+        <div class="chip-row" style="grid-template-columns:1fr 1fr;">
+          <button class="chip active" data-g="med" onclick="pick(this)">관절 영양제</button>
+          <button class="chip" data-g="med" onclick="pick(this)">진통제</button>
+        </div>
+      </div>
+      <div>
+        <p class="field-label">시간</p>
+        <input type="time" id="med-time" value="09:00" />
+      </div>
+      <button class="primary-btn" onclick="saveEntry('med','투약')">저장</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toast-text">저장됐어요</span>
+  </div>
+
+  <!-- ============ TAB BAR ============ -->
+  <div class="tabbar" id="tabbar">
+    <button class="tab active" data-screen="screen-home" onclick="goTab(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+      홈
+    </button>
+    <button class="tab" data-screen="screen-report" onclick="goTab(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      리포트
+    </button>
+    <button class="tab" data-screen="screen-care" onclick="goTab(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c0-4-4-6-4-10a4 4 0 0 1 8 0c0 4-4 6-4 10Z"/><path d="M12 3v3"/></svg>
+      케어
+    </button>
+    <button class="tab" data-screen="screen-ai" onclick="goTab(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+      AI건강
+    </button>
+    <button class="tab" data-screen="screen-pet-list" onclick="goTab(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg>
+      마이펫
+    </button>
+  </div>
+
+</div>
+<p class="caption">세븐케어 — 초고령견 케어일지 & 데이터 리포트 (졸업작품 목업)</p>
+</div>
+
+<script>
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+
+  function goTab(btn){
+    showScreen(btn.dataset.screen);
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tabbar').style.display = 'flex';
+  }
+
+  var formReturn = 'screen-home';
+  function openForm(type, ret){
+    formReturn = ret || 'screen-home';
+    showScreen('screen-form-' + type);
+    document.getElementById('tabbar').style.display = 'none';
+  }
+
+  function closeForm(){
+    showScreen(formReturn);
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    var activeTabBtn = document.querySelector('.tab[data-screen="' + formReturn + '"]');
+    if(activeTabBtn){
+      activeTabBtn.classList.add('active');
+      document.getElementById('tabbar').style.display = 'flex';
+    } else {
+      document.getElementById('tabbar').style.display = 'none';
+    }
+  }
+
+  function saveMobility(){
+    var groups = ['m1','m2','m3','m4'];
+    var good = 0;
+    groups.forEach(function(g){
+      var active = document.querySelector('.chip[data-g="' + g + '"].active');
+      if(active && active.dataset.good === '1') good++;
+    });
+    document.getElementById('mobility-badge').textContent = '오늘 ' + good + '/4';
+    saveEntry('mobility', '거동 체크 · ' + good + '/4');
+  }
+
+  function saveCognitive(){
+    var checked = document.querySelectorAll('#screen-form-cognitive input[data-cog]:checked').length;
+    document.getElementById('cognitive-badge').textContent = '이번 주 증상 ' + checked + '개';
+    saveEntry('cognitive', '인지기능 체크 · 증상 ' + checked + '개');
+  }
+
+  function saveQol(){
+    var total = 0;
+    for(var i = 1; i <= 7; i++){ total += Number(document.getElementById('qol-' + i).value); }
+    var avg = Math.round((total / 7) * 10) / 10;
+    document.getElementById('qol-badge').textContent = '이번 달 평균 ' + avg + '/10';
+    saveEntry('qol', '삶의 질 평가 · 평균 ' + avg + '/10');
+  }
+
+  function goSub(id, ret){
+    formReturn = ret || 'screen-ai';
+    showScreen(id);
+    document.getElementById('tabbar').style.display = 'none';
+  }
+
+  var petsData = {
+    choco: { name:'초코', breed:'골든리트리버', age:'14세', gender:'수컷', weight:'24.1kg', condition:'슬개골 탈구 2기', med:'관절 영양제', hospital:'노원동물병원' },
+    bori: { name:'보리', breed:'말티즈', age:'11세', gender:'암컷(중성화)', weight:'4.3kg', condition:'없음', med:'없음', hospital:'노원동물병원' },
+  };
+  var petRecords = {
+    choco: [ { label:'아침 식사', meta:'완료 · 8:10' }, { label:'관절 영양제', meta:'복용 · 9:00' } ],
+    bori: [],
+  };
+  var currentPetId = 'choco';
+  var homePetId = 'choco';
+  var petFormMode = 'add';
+
+  function renderHomePet(){
+    var p = petsData[homePetId];
+    document.getElementById('home-greeting').textContent = p.name + ', 오늘도 잘 지내고 있나요?';
+    document.getElementById('home-pet-name').textContent = p.name + ' · ' + p.breed + ' · ' + p.age;
+    document.getElementById('home-pet-sub').textContent = '최근 체중 ' + p.weight;
+    renderTodayList();
+  }
+
+  function renderTodayList(){
+    var list = document.getElementById('today-list');
+    var recs = petRecords[homePetId] || [];
+    if(recs.length === 0){
+      list.innerHTML = '<div class="empty-hint">아직 오늘 기록이 없어요</div>';
+      return;
+    }
+    list.innerHTML = '';
+    recs.forEach(function(r){
+      var row = document.createElement('div');
+      row.className = 'row-item';
+      row.innerHTML = '<span>' + r.label + '</span><span class="meta">' + r.meta + '</span>';
+      list.appendChild(row);
+    });
+  }
+
+  function openPetSwitcher(){
+    var box = document.getElementById('pet-switcher-list');
+    box.innerHTML = '';
+    Object.keys(petsData).forEach(function(id){
+      var p = petsData[id];
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pet-switch-item' + (id === homePetId ? ' active' : '');
+      btn.onclick = function(){ selectHomePet(id); };
+      btn.innerHTML = '<div class="pet-avatar" style="width:38px;height:38px;"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg></div>' +
+        '<div><p class="name" style="margin:0;">' + p.name + '</p><p class="sub" style="margin:2px 0 0;">' + p.breed + ' · ' + p.age + '</p></div>';
+      box.appendChild(btn);
+    });
+    document.getElementById('pet-switcher-overlay').style.display = 'flex';
+  }
+
+  function closePetSwitcher(){
+    document.getElementById('pet-switcher-overlay').style.display = 'none';
+  }
+
+  function selectHomePet(id){
+    homePetId = id;
+    renderHomePet();
+    closePetSwitcher();
+  }
+
+  function fillDetail(id){
+    var p = petsData[id];
+    document.getElementById('detail-name').textContent = p.name;
+    document.getElementById('detail-meta').textContent = p.breed + ' · ' + p.age + ' · ' + p.gender;
+    document.getElementById('detail-weight').textContent = p.weight;
+    document.getElementById('detail-condition').textContent = p.condition || '없음';
+    document.getElementById('detail-med').textContent = p.med || '없음';
+    document.getElementById('detail-hospital').textContent = p.hospital || '미등록';
+  }
+
+  function viewPet(id){
+    currentPetId = id;
+    fillDetail(id);
+    goSub('screen-pet-detail', 'screen-pet-list');
+  }
+
+  function openPetForm(mode){
+    petFormMode = mode;
+    document.getElementById('pet-form-title').textContent = mode === 'edit' ? '펫 정보 수정' : '펫 등록하기';
+    document.getElementById('pet-form-error').style.display = 'none';
+    if(mode === 'edit'){
+      var p = petsData[currentPetId];
+      document.getElementById('pf-name').value = p.name;
+      document.getElementById('pf-breed').value = p.breed;
+      document.getElementById('pf-age').value = p.age;
+      document.getElementById('pf-weight').value = parseFloat(p.weight);
+      document.getElementById('pf-condition').value = p.condition === '없음' ? '' : p.condition;
+      document.getElementById('pf-hospital').value = p.hospital === '미등록' ? '' : p.hospital;
+      document.querySelectorAll('.chip[data-g="pfgender"]').forEach(function(c){
+        c.classList.toggle('active', c.textContent === (p.gender.indexOf('암컷') === 0 ? '암컷' : '수컷'));
+      });
+      goSub('screen-pet-form', 'screen-pet-detail');
+    } else {
+      document.getElementById('pf-name').value = '';
+      document.getElementById('pf-breed').value = '';
+      document.getElementById('pf-age').value = '';
+      document.getElementById('pf-weight').value = '';
+      document.getElementById('pf-condition').value = '';
+      document.getElementById('pf-hospital').value = '';
+      document.querySelectorAll('.chip[data-g="pfgender"]').forEach(function(c){ c.classList.toggle('active', c.textContent === '수컷'); });
+      goSub('screen-pet-form', 'screen-pet-list');
+    }
+  }
+
+  function savePetForm(){
+    var name = document.getElementById('pf-name').value.trim();
+    var breed = document.getElementById('pf-breed').value.trim();
+    if(!name || !breed){
+      document.getElementById('pet-form-error').style.display = 'block';
+      return;
+    }
+    var genderChip = document.querySelector('.chip[data-g="pfgender"].active');
+    var weightVal = document.getElementById('pf-weight').value;
+    var obj = {
+      name: name,
+      breed: breed,
+      age: document.getElementById('pf-age').value.trim() || '나이 미상',
+      gender: genderChip ? genderChip.textContent : '수컷',
+      weight: weightVal ? weightVal + 'kg' : '미측정',
+      condition: document.getElementById('pf-condition').value.trim() || '없음',
+      med: '없음',
+      hospital: document.getElementById('pf-hospital').value.trim() || '미등록',
+    };
+
+    if(petFormMode === 'edit'){
+      petsData[currentPetId] = obj;
+      fillDetail(currentPetId);
+      formReturn = 'screen-pet-list';
+      showScreen('screen-pet-detail');
+      showToast('펫 정보가 수정됐어요');
+    } else {
+      var id = 'pet_' + Date.now();
+      petsData[id] = obj;
+      petRecords[id] = [];
+      var list = document.getElementById('pet-list-cards');
+      var card = document.createElement('div');
+      card.className = 'care-card';
+      card.onclick = function(){ viewPet(id); };
+      card.innerHTML = '<div style="display:flex;align-items:center;gap:12px;">' +
+        '<div class="pet-avatar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6"/></svg></div>' +
+        '<div><p class="name">' + obj.name + '</p><p class="sub">' + obj.breed + ' · ' + obj.age + ' · ' + obj.gender + '</p></div></div>';
+      list.appendChild(card);
+      showScreen('screen-pet-list');
+      document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelector('.tab[data-screen="screen-pet-list"]').classList.add('active');
+      document.getElementById('tabbar').style.display = 'flex';
+      showToast(obj.name + ' 등록됐어요');
+    }
+  }
+
+  function switchSearch(btn, which){
+    pick(btn);
+    document.getElementById('search-symptom').style.display = which === 'symptom' ? 'flex' : 'none';
+    document.getElementById('search-breed').style.display = which === 'breed' ? 'flex' : 'none';
+    document.getElementById('search-result').style.display = 'none';
+  }
+
+  function showSearchResult(text){
+    document.getElementById('search-result-text').textContent = text;
+    document.getElementById('search-result').style.display = 'block';
+  }
+
+  var chatReplies = [
+    '언제부터 그런 모습을 보였나요? 최근 거동 체크 기록도 함께 살펴볼게요.',
+    '최근 3일간 식사량이 줄어든 기록이 있어요. 관련이 있을 수 있으니 며칠 더 지켜보고, 계속되면 병원 방문을 권해요.',
+    '기록해주신 내용은 케어 탭에 함께 남겨둘게요. 다른 궁금한 점이 있으면 편하게 물어보세요.',
+  ];
+  var chatStep = 0;
+  function sendChat(){
+    var input = document.getElementById('chat-input');
+    var text = input.value.trim();
+    if(!text) return;
+    var list = document.getElementById('chat-list');
+    var userBubble = document.createElement('div');
+    userBubble.className = 'chat-bubble user';
+    userBubble.textContent = text;
+    list.appendChild(userBubble);
+    input.value = '';
+    list.scrollTop = list.scrollHeight;
+    setTimeout(function(){
+      var aiBubble = document.createElement('div');
+      aiBubble.className = 'chat-bubble ai';
+      aiBubble.textContent = chatReplies[chatStep % chatReplies.length];
+      chatStep++;
+      list.appendChild(aiBubble);
+      list.scrollTop = list.scrollHeight;
+    }, 500);
+  }
+
+  function pick(chip){
+    var g = chip.dataset.g;
+    document.querySelectorAll('.chip[data-g="' + g + '"]').forEach(function(c){ c.classList.remove('active'); });
+    chip.classList.add('active');
+  }
+
+  function showToast(text){
+    var t = document.getElementById('toast');
+    document.getElementById('toast-text').textContent = text;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1600);
+  }
+
+  function saveEntry(type, label){
+    var now = new Date();
+    var time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    if(!petRecords[homePetId]) petRecords[homePetId] = [];
+    petRecords[homePetId].unshift({ label: label, meta: '기록됨 · ' + time });
+    renderTodayList();
+    closeForm();
+    showToast(label + ' 기록이 저장됐어요');
+  }
+
+  function saveWeight(){
+    var val = document.getElementById('weight-value').value;
+    var err = document.getElementById('weight-error');
+    if(!val){ err.style.display = 'block'; return; }
+    err.style.display = 'none';
+    saveEntry('weight', '체중 ' + val + 'kg');
+  }
+
+  renderHomePet();
+</script>
+
+</body>
+</html>

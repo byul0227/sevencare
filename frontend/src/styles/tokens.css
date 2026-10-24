@@ -1,0 +1,41 @@
+/* 세븐케어 디자인 토큰 v2 — 밝은 뉴트럴 배경 + 따뜻한 애프리콧 오렌지
+   (이전 변수 이름은 그대로 두고 값만 바꿔서 기존 화면도 새 톤을 따라가요) */
+:root {
+  /* 배경 */
+  --bg-page: #F2F4F6;
+  --bg-card: #FFFFFF;
+  --bg-sunk: #F5F6F8;
+
+  /* 잉크 (텍스트) — 예전 pine 이름 유지 */
+  --pine-900: #191F28;
+  --pine-700: #333D4B;
+  --pine-500: #6B7684;
+  --pine-300: #B0B8C1;
+  --sage-line: #E8EBEE;
+
+  /* 브랜드 오렌지 — 예전 gold 이름 유지 */
+  --gold-600: #F0621F;
+  --gold-500: #FF7A3D;
+  --gold-100: #FFF0E8;
+
+  /* 경고 */
+  --rust-600: #E5484D;
+  --rust-100: #FFEEEF;
+
+  /* 기록 종류별 포인트 컬러 */
+  --meal: #FF7A3D;   --meal-bg: #FFF0E8;
+  --poop: #E59A00;   --poop-bg: #FFF6DC;
+  --weight: #3182F6; --weight-bg: #EAF3FF;
+  --med: #7B61FF;    --med-bg: #F1EEFF;
+  --green: #12B886;  --green-bg: #E6F8F1;
+
+  --brand-grad: linear-gradient(140deg, #FFA15A 0%, #FF7A3D 45%, #FF5F57 100%);
+  --shadow-card: 0 2px 10px rgba(25, 31, 40, 0.05), 0 1px 2px rgba(25, 31, 40, 0.04);
+  --shadow-float: 0 10px 30px rgba(25, 31, 40, 0.12);
+
+  --white: #FFFFFF;
+
+  /* 폰트: Pretendard (index.html에서 CDN으로 불러옴) → 없으면 시스템 한글 폰트 */
+  --font-head: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif;
+  --font-body: var(--font-head);
+}

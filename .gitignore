@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+backend/sevencare.db
+# API 키 — 절대 올리지 않기
+.env
+backend/.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# 발표 자료 (용량이 커서 Git에 올리지 않기)
+*.pptx
+*.pdf

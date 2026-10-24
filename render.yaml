@@ -1,0 +1,16 @@
+# Render 배포 설정 (Blueprint) — 서버 하나가 API와 화면을 함께 제공해요
+services:
+  - type: web
+    name: sevencare
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt && cd frontend && npm install --no-audit --no-fund && npm run build
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: SEVENCARE_DEMO_SEED
+        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false   # Render 대시보드에서 직접 입력 (코드에 넣지 않기)
