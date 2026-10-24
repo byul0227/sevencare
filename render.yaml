@@ -12,5 +12,7 @@ services:
         value: 3.12.8
       - key: SEVENCARE_DEMO_SEED
         value: "1"
+      - key: TZ            # 서버 기본 시간대가 UTC라서 '오늘' 날짜가 하루 어긋나지 않게 한국 시간으로
+        value: Asia/Seoul
       - key: GEMINI_API_KEY
         sync: false   # Render 대시보드에서 직접 입력 (코드에 넣지 않기)
