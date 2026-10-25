@@ -83,3 +83,17 @@ export async function readLabel(file, onProgress, psm = '6') {
   onProgress?.(1, '완료')
   return data.text
 }
+
+/** 두 번 읽은 결과 합치기: 많이 찾은 쪽 값이 우선, 빈 칸만 다른 쪽에서 채워요 */
+export function mergeParsed(a, b) {
+  const [main, sub] = Object.keys(a.nutrients).length >= Object.keys(b.nutrients).length ? [a, b] : [b, a]
+  const nutrients = { ...sub.nutrients, ...main.nutrients }
+  const has = (k) => k in main.nutrients
+  return {
+    nutrients,
+    kcal_per_kg: main.kcal_per_kg ?? sub.kcal_per_kg,
+    keywords: [...new Set([...main.keywords, ...sub.keywords])],
+    found: [...main.found, ...sub.found.filter((f) => !has(f.key))],
+    suspect: [...main.suspect, ...sub.suspect].filter((x) => !(x.key in nutrients)),
+  }
+}

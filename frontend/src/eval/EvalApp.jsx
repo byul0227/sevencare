@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { readLabel } from '../lib/ocr.js'
+import { mergeParsed, readLabel } from '../lib/ocr.js'
 
 // 성분표 인식 정확도 측정 (개발용 페이지: /eval.html)
 // 사진마다 정답을 한 번 적어 두면, 네 가지 방법으로 읽어서 "몇 칸을 맞게 읽었나"를 비교해요.
@@ -12,7 +12,7 @@ const METHODS = [
   { id: 'v1', name: '처음 버전', desc: '자동 배치 읽기(PSM 3) + 기본 파서' },
   { id: 'psmOnly', name: '읽기 방식만 개선', desc: '줄 단위 읽기(PSM 6) + 기본 파서' },
   { id: 'parserOnly', name: '파서만 개선', desc: 'PSM 3 + 개선 파서(표 인식·소수점 복원)' },
-  { id: 'final', name: '최종 (앱과 동일)', desc: 'PSM 6 + 개선 파서, 4칸 미만이면 PSM 3 재시도' },
+  { id: 'final', name: '최종 (앱과 동일)', desc: 'PSM 6 + 개선 파서, 빈 칸은 PSM 3으로 다시 읽어 채움' },
 ]
 const TOL = 0.05
 const STORE = 'sevencare-eval-truth'
@@ -81,8 +81,7 @@ export default function EvalApp() {
         setRunning({ i: i + 1, n: targets.length, step: '자동 배치(PSM 3)로 읽는 중' })
         const text3 = await readLabel(it.file, null, '3')
         const [b3, b6, f3, f6] = await Promise.all([parse(text3, 'basic'), parse(text6, 'basic'), parse(text3, 'full'), parse(text6, 'full')])
-        const n6 = Object.keys(f6.nutrients).length
-        const final = n6 >= 4 || Object.keys(f3.nutrients).length <= n6 ? f6 : f3
+        const final = Object.keys(f6.nutrients).length >= 7 ? f6 : mergeParsed(f6, f3)   // 앱과 같은 방식
         const result = {
           ms: Math.round(performance.now() - t0),
           text6, text3,
@@ -136,6 +135,13 @@ export default function EvalApp() {
     download('성분표_인식_정확도.csv', '﻿' + csv, 'text/csv')
   }
 
+  // 틀린 원인을 분석할 수 있게 OCR이 읽은 원문까지 저장
+  function exportOcr() {
+    const out = {}
+    for (const it of items) if (it.result) out[it.name] = { text6: it.result.text6, text3: it.result.text3, final: it.result.preds.final }
+    download('성분표_OCR원문.json', JSON.stringify(out, null, 2), 'application/json')
+  }
+
   function importTruth(e) {
     const f = e.target.files?.[0]
     e.target.value = ''
@@ -172,6 +178,7 @@ export default function EvalApp() {
               {running ? `측정 중 ${running.i}/${running.n} · ${running.step}` : '전체 측정하기'}
             </button>
             <button type="button" className="ev-btn" disabled={!summary.n} onClick={exportCsv}>CSV 내보내기</button>
+            <button type="button" className="ev-btn" disabled={!summary.n} onClick={exportOcr}>OCR 원문 저장</button>
           </div>
         </div>
         <div className="ev-methods">

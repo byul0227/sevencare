@@ -150,3 +150,21 @@ def test_basic_mode_for_comparison():
     full = parse_label(text)["nutrients"]
     assert len(full) == 7 and full["protein"] == 25.0
     assert sum(1 for k, v in full.items() if basic.get(k) == v) < 3
+
+
+# ---- 온라인 성분표 17장 측정에서 실제로 나온 OCR 글자 (Tesseract.js PSM 6) ----
+CARD_TWO_BLOCKS = '소단백질            EIN              소섬유             소회분\n23.0%             12.0%             6.0%              10.0%\n이상                  이상                  이하                 이하\nas                 인                 수분            총 칼모리\n0.8%             0.7%             11.0%            3,155\n이상                  이상                  이하               kcal/kg'
+TABLE_INT_PERCENT = '조단백         조지방          칼슴           인\n22% 이상        12% 이상        0.64% 이상       0.48% 이상\n등록 성분량\n조섬유         조회분          수분\n2.8% 이하        6.0% O|5t       10.5% 이하'
+NO_HEADER_MARKERS = '등록 성분량\n22.0% 이상          10.0% 이상          3.0% 이하           9.0% 이하\n1.00% 이상         0.60% 이상         25.0% 이하        3,200kcal/kg'
+LIST_WITH_ENGLISH = '조단백질 Crude Protein               more than 26.0 % 이상\n조지방 Crude Far                                 more than 12.0 % 이상\n칼숨 Cakium                             morethan 0.7 % 이상\n인 Phosphorus                                morethan 0.7 % 이상\n조회분 Crde Ash                         lessthan 8.0 % 이하\n조섬유 Crude Fiber                          lessthan 5.0 % 이하\n수분 Moisture                            lessthan 23.0 % 이하'
+
+
+@pytest.mark.parametrize("text, expected", [
+    (CARD_TWO_BLOCKS, {'protein': 23.0, 'fat': 12.0, 'fiber': 6.0, 'ash': 10.0, 'calcium': 0.8, 'phosphorus': 0.7, 'moisture': 11.0}),
+    (TABLE_INT_PERCENT, {'protein': 22.0, 'fat': 12.0, 'fiber': 2.8, 'ash': 6.0, 'calcium': 0.64, 'phosphorus': 0.48, 'moisture': 10.5}),
+    (NO_HEADER_MARKERS, {'protein': 22.0, 'fat': 10.0, 'fiber': 3.0, 'ash': 9.0, 'calcium': 1.0, 'phosphorus': 0.6, 'moisture': 25.0}),
+    (LIST_WITH_ENGLISH, {'protein': 26.0, 'fat': 12.0, 'fiber': 5.0, 'ash': 8.0, 'calcium': 0.7, 'phosphorus': 0.7, 'moisture': 23.0}),
+])
+def test_parse_real_online_labels(text, expected):
+    """카드형 두 덩어리 · 정수% · 헤더 없음(이상/이하로 판단) · 영어가 섞인 목록 — 칼슘을 '칼슴'으로 읽어도 찾아요"""
+    assert parse_label(text)["nutrients"] == expected

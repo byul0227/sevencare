@@ -30,14 +30,26 @@ SOURCES = {
 # ---------------------------------------------------------------- 1) 파싱
 FIELDS = {
     # key: (표시 이름, 정규식 이름 패턴)
-    "protein":    ("조단백질", r"조\s*단\s*백\s*질?|crude\s*protein|protein"),
-    "fat":        ("조지방",   r"조\s*지\s*방|crude\s*fat|fat"),
-    "fiber":      ("조섬유",   r"조\s*섬\s*유|crude\s*fib(?:er|re)|fib(?:er|re)"),
-    "ash":        ("조회분",   r"조\s*회\s*분|crude\s*ash|ash"),
-    "calcium":    ("칼슘",     r"칼\s*슘|calcium|\bca\b"),
+    # OCR이 자주 틀리는 글자도 같이 찾아요 (조→소, 단백→다백·단맥, 지방→지망, 회분→희분, 칼슘→칼슴·갈숨·칼숍 …)
+    "protein":    ("조단백질", r"[조소]\s*[단다]\s*[백맥]\s*질?|crude\s*protein|protein"),
+    "fat":        ("조지방",   r"[조소]\s*지\s*[방망]|crude\s*fat|\bfat\b"),
+    "fiber":      ("조섬유",   r"[조소]\s*섬\s*유|crude\s*fib(?:er|re)|fib(?:er|re)"),
+    "ash":        ("조회분",   r"[조소]\s*[회희]\s*[분본]|crude\s*ash|\bash\b"),
+    "calcium":    ("칼슘",     r"(?<![가-힣])[칼갈]\s*[슘슴숨숍숌]|ca[lk]cium|\bca\b"),
     "phosphorus": ("인",       r"(?<![가-힣])인(?![가-힣])|phosphorus|\bp\b"),
     "moisture":   ("수분",     r"수\s*분|moisture"),
     "sodium":     ("나트륨",   r"나\s*트\s*륨|sodium|\bna\b"),
+}
+# 비교 실험용 '처음 버전' 파서가 쓰던 이름 패턴 (정확도 비교를 공정하게 하려고 그대로 둬요)
+BASIC_FIELDS = {
+    "protein": r"조\s*단\s*백\s*질?|crude\s*protein|protein",
+    "fat": r"조\s*지\s*방|crude\s*fat|fat",
+    "fiber": r"조\s*섬\s*유|crude\s*fib(?:er|re)|fib(?:er|re)",
+    "ash": r"조\s*회\s*분|crude\s*ash|ash",
+    "calcium": r"칼\s*슘|calcium|\bca\b",
+    "phosphorus": r"(?<![가-힣])인(?![가-힣])|phosphorus|\bp\b",
+    "moisture": r"수\s*분|moisture",
+    "sodium": r"나\s*트\s*륨|sodium|\bna\b",
 }
 NUM = r"([0-9]{1,3}(?:[.,][0-9]{1,3})?)"
 # 건사료·습식 사료에서 나올 수 있는 범위(급여 상태 %). 벗어나면 OCR 오인식으로 보고 사용자에게 확인을 부탁해요
@@ -51,13 +63,17 @@ KEYWORDS = {
 }
 
 
-def _normalize(text: str) -> str:
+def _normalize(text: str, basic: bool = False) -> str:
     t = text.replace("％", "%").replace("：", ":").replace("﹪", "%")
     # OCR이 숫자 사이의 O/o, l/I 를 잘못 읽는 경우 (예: 2O.5 → 20.5, 1l → 11)
     t = re.sub(r"(?<=\d)[Oo](?=\s*[\d.,%])", "0", t)
     t = re.sub(r"(?<=[\d.])[Oo](?=\d)", "0", t)
     t = re.sub(r"(?<=\d)[lI|](?=\s*[\d.,%])", "1", t)
     t = re.sub(r"(?<![A-Za-z0-9])[Oo](?=[.,]\d)", "0", t)       # O.8 → 0.8
+    if basic:
+        return t   # 비교 실험용 '처음 버전'은 여기까지만
+    t = re.sub(r"(\d[.,]\d)96(?=\s*(?:이상|이하|min|max|$))", r"\1%", t, flags=re.M)   # 0.5% → 0.596
+    t = re.sub(r"\(\d{3,8}\)", " ", t)   # 괄호 속 영어를 숫자로 잘못 읽은 것 (예: '칼슘 (Calcium)' → '(09000)')
     return t
 
 
@@ -66,7 +82,11 @@ def _to_float(s: str) -> float:
 
 
 CANON = ["protein", "fat", "fiber", "ash", "calcium", "phosphorus", "moisture"]   # 국내 포장의 일반적인 표시 순서
-_VAL = re.compile(r"(?<![\d.,])(\d{1,3}(?:[.,]\d{1,2})?)\s*(%?)")
+MIN_KEYS = ["protein", "fat", "calcium", "phosphorus"]    # 포장에 '이상(min)'으로 표시되는 성분
+MAX_KEYS = ["fiber", "ash", "moisture"]                   # '이하(max)'로 표시되는 성분
+_VAL = re.compile(r"(?<![\d.,])(\d{1,3}(?:[.,]\d{1,2})?)(?!\d)\s*(%?)")
+_MIN = re.compile(r"이\s*상|\bmin|more", re.I)
+_MAX = re.compile(r"이\s*하|\bmax|less", re.I)
 
 
 def _keys_in_order(line: str) -> list[str]:
@@ -79,92 +99,193 @@ def _keys_in_order(line: str) -> list[str]:
     return [k for _, k in sorted(hits)]
 
 
-def _parse_table(lines: list[str]) -> tuple[dict, list]:
-    """표 모양 성분표: 위에 이름 줄, 아래에 숫자 줄.
-    예) 조단백질 | 조지방 | 조섬유 | … / 25.0% | 10.0% | 1.3% | …  → 열 순서대로 짝지어요."""
-    def vals(line):
-        toks = [(m.group(1), m.group(2)) for m in _VAL.finditer(line)]
-        return [t for t in toks if t[1] or re.search(r"[.,]", t[0])]   # 소수점이나 %가 있는 것만 값으로
-
-    # 숫자가 4개 이상인 줄을 모두 후보로 (OCR이 한 줄을 두 줄로 나눈 경우도 이어 붙여서 봐요).
-    # 원료 목록처럼 숫자가 많은 다른 줄이 있을 수 있어서, %가 많이 붙은 줄부터 차례로 시도해요.
-    cands = []
-    for i, line in enumerate(lines):
-        if len(_keys_in_order(line)) >= 2:
-            continue   # '조단백질 26%, 조지방 12%'처럼 이름과 값이 같은 줄에 있으면 표가 아니에요
-        a = vals(line)
-        if len(a) >= 4:
-            cands.append((i, a))
-        if i + 1 < len(lines):
-            b = vals(lines[i + 1]) if len(_keys_in_order(lines[i + 1])) < 2 else []
-            if len(a) >= 2 and len(b) >= 2:
-                cands.append((i, a + b))
-    cands.sort(key=lambda c: (-sum(1 for _, p in c[1] if p) / len(c[1]), -len(c[1])))
-    for row, toks in cands:
-        out = _map_row(lines, row, toks)
-        if out[0]:
-            return out
-    return {}, []
+def _tokens(line: str) -> list[dict]:
+    """한 줄의 값 칸들: 숫자 · % 여부 · 이상/이하 표시 · 줄 안 위치"""
+    line = re.sub(r"\d[\d,.\s]*k\s*c\s*a\s*l\S*", " ", line, flags=re.I)   # 3,200kcal/kg 같은 칼로리 칸은 빼요
+    ms = [m for m in _VAL.finditer(line) if m.group(2) or re.search(r"[.,]", m.group(1))]
+    out = []
+    for i, m in enumerate(ms):
+        tail = line[m.end(): ms[i + 1].start() if i + 1 < len(ms) else len(line)]
+        mk = "min" if _MIN.search(tail) else "max" if _MAX.search(tail) else None
+        out.append({"num": m.group(1), "pct": m.group(2), "mk": mk, "x": m.start()})
+    return out
 
 
-def _map_row(lines: list[str], row: int, toks: list) -> tuple[dict, list]:
+def _cells(line: str) -> list[tuple[int, Optional[str]]]:
+    """헤더 줄을 칸으로 나눠요 (|나 넓은 공백 기준). 글자가 없는 칸은 버리고, 못 읽은 칸은 None"""
+    out = []
+    for m in re.finditer(r"[^\s|｜](?:[^\s|｜]| (?=[^\s|｜]))*", line):   # 한 칸 띄어쓰기는 같은 칸
+        part = m.group(0)
+        if not re.search(r"[가-힣A-Za-z]", part):
+            continue
+        keys = _keys_in_order(part)
+        out.append((m.start(), keys[0] if keys else None))
+    return out
 
-    # 숫자 줄 위쪽 8줄에서, 한 줄 또는 붙어 있는 두 줄 중 성분 이름을 가장 많이 찾은 순서를 헤더로
-    header: list[str] = []
-    top = max(0, row - 8)
-    # 한 줄짜리 헤더를 먼저 보고, 헤더가 두 줄로 나뉜 경우(서로 다른 성분이 이어지는 경우)만 붙여서 봐요.
-    # 한국어 줄 + 영어 줄처럼 같은 성분이 겹치는 두 줄은 붙이지 않아요(순서가 섞여요).
-    for j in range(top, row):
-        keys = _keys_in_order(lines[j])
-        if len(keys) > len(header):
-            header = keys
-    for j in range(top, row - 1):
-        k1, k2 = _keys_in_order(lines[j]), _keys_in_order(lines[j + 1])
-        if k1 and k2 and not set(k1) & set(k2) and len(k1) + len(k2) > len(header):
-            header = k1 + k2
+
+def _fits(key: str, value: float, mk: Optional[str]) -> bool:
+    """못 읽은 칸에 어떤 성분이 올 수 있는지: 이상/이하 표시와 값의 크기로 판단"""
+    if mk == "min" and key not in MIN_KEYS or mk == "max" and key not in MAX_KEYS:
+        return False
+    if key in ("calcium", "phosphorus"):
+        return value <= 3
+    if key == "protein":
+        return value >= 10
+    return 0.3 <= value <= PLAUSIBLE[key]
+
+
+def _num(tok: dict) -> float:
+    return _to_float(tok["num"])
+
+
+def _fix_tokens(toks: list[dict], keys: list[str]) -> list[tuple[str, float, bool]]:
+    """OCR이 자주 틀리는 숫자를 바로잡아요. (key, 값, 보정했는지)"""
     n = len(toks)
-    guessed = False
-    if len(header) < 3:
-        # 이름 줄을 거의 못 읽었어도, 값이 딱 7개면 국내 표준 표시 순서로 보고 채워요 (사용자 확인 필요 표시)
-        if n != len(CANON):
-            return {}, []
-        header, guessed = list(CANON), True
-
-    if n == len(header):
-        order = header
-    elif n > len(header) and [k for k in CANON if k in header] == header:
-        # 헤더 몇 칸을 못 읽었으면(예: '수분'을 'FF'로 읽음) 표준 표시 순서로 빈칸을 채워요
-        missing = [k for k in CANON if k not in header]
-        lo, hi = CANON.index(header[0]), CANON.index(header[-1])
-        gaps = [k for k in missing if lo < CANON.index(k) < hi]      # 헤더 사이에 빠진 칸 먼저
-        tail = [k for k in missing if CANON.index(k) > hi]            # 그다음 뒤쪽 칸
-        head = [k for k in missing if CANON.index(k) < lo]
-        need = n - len(header)
-        pick = (gaps + tail + head)[:need]
-        if len(pick) < need:
-            return {}, []
-        use = set(header) | set(pick)
-        order = [k for k in CANON if k in use]
-        if len(order) != n:
-            return {}, []
-    else:
-        return {}, []
-
-    pct_share = sum(1 for _, p in toks if p) / n
-    dec_any = any(re.search(r"[.,]", t) for t, _ in toks)
-    out, found = {}, []
-    for key, (num, pct) in zip(order, toks):
-        fixed = False
-        # 대부분 %가 붙어 있는데 혼자 없고 소수점 둘째 자리가 7·9면, %를 숫자로 잘못 읽은 것 (0.8% → 0.87)
-        if not pct and pct_share >= 0.5 and re.fullmatch(r"\d{1,2}[.,]\d[79]", num):
+    pct_share = sum(1 for t in toks if t["pct"]) / n
+    dec_any = any(re.search(r"[.,]", t["num"]) for t in toks)
+    one_dec = sum(1 for t in toks if re.fullmatch(r"\d+[.,]\d", t["num"]))
+    out = []
+    for key, tok in zip(keys, toks):
+        num, fixed = tok["num"], False
+        # %를 숫자 9·7로 읽은 경우 (0.8% → 0.87, 29.0% → 29.09%)
+        if re.fullmatch(r"\d{1,2}[.,]\d[79]", num) and (not tok["pct"] and pct_share >= 0.5 or tok["pct"] and one_dec >= 2):
             num, fixed = num[:-1], True
-        # 표 안에 소수점 있는 칸이 있으면 모든 칸이 소수 한 자리로 인쇄된 표로 보고,
-        # 소수점이 빠진 2~3자리 숫자를 복원 (25.0% → 250%, 1.3% → 13%, 0.8% → 08%)
-        elif dec_any and re.fullmatch(r"\d{2,3}", num):
+        # 소수점이 빠진 숫자 (25.0% → 250%, 0.8% → 08%, 1.3% → 13%): 3자리이거나, 0으로 시작하거나,
+        # 칼슘·인·조섬유처럼 작은 값인데 2자리로 읽힌 경우만 (22%·12%처럼 원래 정수인 칸은 그대로)
+        elif dec_any and (re.fullmatch(r"\d{3}", num) or re.fullmatch(r"0\d", num)
+                          or re.fullmatch(r"\d{2}", num) and (key in ("calcium", "phosphorus", "fiber") or float(num) > PLAUSIBLE[key])):
             num, fixed = num[:-1] + "." + num[-1], True
-        out[key] = round(_to_float(num), 3)
-        found.append({"key": key, "label": FIELDS[key][0], "value": out[key], "text": num + (pct or ""),
-                      "table": True, "corrected": fixed or guessed})
+        v = _to_float(num)
+        # 칸 테두리를 1로 읽은 경우 (11.0% → 111.0%)
+        if v > PLAUSIBLE[key] and num.startswith("1") and _to_float(num[1:]) <= PLAUSIBLE[key]:
+            v, fixed = _to_float(num[1:]), True
+        out.append((key, round(v, 3), fixed))
+    return out
+
+
+def _header_order(lines: list[str], row: int, toks: list[dict]) -> Optional[list[Optional[str]]]:
+    """숫자 줄 위쪽에서 가까운 헤더 줄부터 보고, 값 칸마다 성분 이름(못 읽으면 None)을 정해요"""
+    n = len(toks)
+    cands = []
+    for j in range(row - 1, max(-1, row - 9), -1):
+        cands.append(lines[j])
+        if j + 1 < row:
+            k1, k2 = _keys_in_order(lines[j]), _keys_in_order(lines[j + 1])
+            if k1 and k2 and not set(k1) & set(k2):   # 헤더가 두 줄로 나뉜 경우
+                cands.append(lines[j] + "  " + lines[j + 1])
+    for line in cands:
+        keys = _keys_in_order(line)
+        cells = _cells(line)
+        if _tokens(line):
+            continue                                  # 숫자가 있는 줄(값 줄·막대그래프 등)은 헤더가 아니에요
+        if len(cells) == n and sum(1 for _, k in cells if k) >= max(2, n - 2) and len({k for _, k in cells if k}) == sum(1 for _, k in cells if k):
+            return [k for _, k in cells]
+        if len(keys) == n and n >= 2:
+            return keys
+        if len(keys) >= 3 and n > len(keys) and [k for k in CANON if k in keys] == keys:
+            # 헤더 몇 칸을 못 읽었으면 표준 표시 순서로 빈칸을 채워요
+            missing = [k for k in CANON if k not in keys]
+            lo, hi = CANON.index(keys[0]), CANON.index(keys[-1])
+            pick = ([k for k in missing if lo < CANON.index(k) < hi] + [k for k in missing if CANON.index(k) > hi]
+                    + [k for k in missing if CANON.index(k) < lo])[: n - len(keys)]
+            if len(pick) == n - len(keys):
+                use = set(keys) | set(pick)
+                return [k for k in CANON if k in use]
+        known = [(x, k) for x, k in cells if k]
+        if len(cells) >= n and len(known) >= 2:
+            # 칸 수가 안 맞으면 글자 위치로 가장 가까운 칸에 짝지어요
+            idx = [min(range(len(cells)), key=lambda c: abs(cells[c][0] - t["x"])) for t in toks]
+            if len(set(idx)) == n:
+                return [cells[i][1] for i in idx]
+    return None
+
+
+def _assign_by_marker(toks: list[dict]) -> Optional[list[str]]:
+    """헤더가 없을 때: '이상' 칸은 단백질·지방·칼슘·인, '이하' 칸은 섬유·회분·수분 순서로.
+    칼슘·인은 보통 칼슘이 더 많아서(칼슘:인 1~2:1) 큰 값을 칼슘으로 봐요"""
+    mins = [t for t in toks if t["mk"] == "min"]
+    maxs = [t for t in toks if t["mk"] == "max"]
+    if len(mins) + len(maxs) != len(toks) or len(mins) > 4 or len(maxs) > 3 or len(toks) < 3:
+        return None
+    keys = {}
+    # '이상' 칸은 보통 단백질 → 지방 → 칼슘·인 순서로 적혀 있어요
+    first, rest = mins[:2], mins[2:]
+    if len(first) == 2 and _num(first[0]) < 10:
+        return None
+    for k, t in zip(["protein", "fat"], first):
+        keys[id(t)] = k
+    for k, t in zip(["calcium", "phosphorus"], sorted(rest, key=_num, reverse=True)):
+        keys[id(t)] = k
+    for k, t in zip(MAX_KEYS, maxs):
+        keys[id(t)] = k
+    if len(keys) != len(toks):
+        return None
+    return [keys[id(t)] for t in toks]
+
+
+def _parse_table(lines: list[str]) -> tuple[dict, list]:
+    """표 모양 성분표: 이름 줄 아래에 숫자 줄. 카드형처럼 표가 두 덩어리로 나뉜 경우도 합쳐요.
+    헤더를 못 읽은 줄은 '이상/이하' 표시나 국내 표준 표시 순서로 채우고 '확인 필요'로 표시해요."""
+    rows = []
+    for i, line in enumerate(lines):
+        if _keys_in_order(line):
+            continue   # '조단백질 26%, 조지방 12%'처럼 이름과 값이 같은 줄에 있으면 표가 아니에요 (아래 줄 단위 파서가 처리)
+        toks = _tokens(line)
+        if len(toks) >= 2 and sum(1 for t in toks if t["pct"]) * 2 >= len(toks):
+            if i + 1 < len(lines) and any(t["mk"] is None for t in toks):
+                below = re.findall(r"이\s*[상하]|\bmin\b|\bmax\b", lines[i + 1], re.I)
+                if len(below) == len(toks) and not _tokens(lines[i + 1]):   # 값 아래 줄에 '이상 이상 이하 …'
+                    for t, w in zip(toks, below):
+                        t["mk"] = "max" if re.search(r"하|max", w, re.I) else "min"
+            rows.append((i, toks))
+
+    out, found = {}, []
+
+    def take(pairs, guessed):
+        for key, v, fixed in pairs:
+            if key and key not in out:
+                out[key] = v
+                found.append({"key": key, "label": FIELDS[key][0], "value": v, "text": str(v),
+                              "table": True, "corrected": fixed or guessed})
+
+    loose = []   # 헤더 없이 이어지는 숫자 줄들
+    for i, toks in rows:
+        order = _header_order(lines, i, toks)
+        if order and any(k and (t["mk"] == "min" and k in MAX_KEYS or t["mk"] == "max" and k in MIN_KEYS)
+                         for k, t in zip(order, toks)):
+            order = None   # 헤더로 짝지은 결과가 '이상/이하' 표시와 안 맞으면 잘못 짝지은 거예요
+        if order and sum(1 for k in order if k) >= 2:
+            # 못 읽은 칸(None)은 아직 안 나온 성분 중 이상/이하·크기가 맞는 것으로
+            used = set(out) | {k for k in order if k}
+            filled, guessed_any = [], False
+            for k, t in zip(order, toks):
+                if k is None:
+                    k = next((c for c in CANON if c not in used and _fits(c, _num(t), t["mk"])), None)
+                    if k:
+                        used.add(k); guessed_any = True
+                filled.append(k)
+            keep = [(k, t) for k, t in zip(filled, toks) if k]
+            fixed = _fix_tokens([t for _, t in keep], [k for k, _ in keep])
+            take([(k, v, f or (guessed_any and order[idx] is None)) for idx, (k, v, f) in
+                  zip([filled.index(k) for k, _ in keep], fixed)], False)
+        else:
+            loose.append((i, toks))
+
+    # 헤더 없는 숫자 줄: 붙어 있는 줄끼리 묶어서
+    groups, cur = [], []
+    for i, toks in loose:
+        if cur and i - cur[-1][0] > 2:
+            groups.append(cur); cur = []
+        cur.append((i, toks))
+    if cur:
+        groups.append(cur)
+    for g in groups:
+        toks = [t for _, ts in g for t in ts]
+        keys = _assign_by_marker(toks)
+        if keys is None and len(toks) == len(CANON):
+            keys = list(CANON)
+        if keys:
+            take(_fix_tokens(toks, keys), True)
     return out, found
 
 
@@ -172,7 +293,8 @@ def _parse_basic(t: str) -> tuple[dict, list]:
     """비교 실험용 '기본' 파서 — 처음 만든 방식 그대로.
     이름 뒤 25자 안(줄바꿈 포함)의 첫 숫자를 값으로 봐요. 표 인식·소수점 복원·범위 확인 없음."""
     nutrients, found = {}, []
-    for key, (label, name_re) in FIELDS.items():
+    for key, name_re in BASIC_FIELDS.items():
+        label = FIELDS[key][0]
         m = re.search(rf"(?:{name_re})[^0-9]{{0,25}}?{NUM}\s*%?", t, re.I)
         if m:
             val = _to_float(m.group(1))
@@ -185,7 +307,7 @@ def _parse_basic(t: str) -> tuple[dict, list]:
 def parse_label(text: str, mode: str = "full") -> dict:
     """OCR 글자 → {'nutrients': {key: 값(%)}, 'kcal_per_kg', 'keywords', 'found': [...], 'suspect': [...]}
     mode='basic' 이면 비교 실험용 기본 파서만 써요."""
-    t = _normalize(text)
+    t = _normalize(text, basic=(mode == "basic"))
     nutrients: dict[str, float] = {}
     found = []
     suspect = []
@@ -207,19 +329,28 @@ def parse_label(text: str, mode: str = "full") -> dict:
         if key in nutrients or any(x["key"] == key for x in suspect):
             continue
         pats = [
-            re.compile(rf"(?:{name_re})[^0-9\n]{{0,25}}?{NUM}\s*(%|mg\s*/\s*kg|g\s*/\s*kg)?", re.I),
-            re.compile(rf"(?:{name_re})[^0-9\n]{{0,25}}\n\s*{NUM}\s*(%)", re.I),
+            # 이름과 값 사이에 'Crude Fat   more than' 같은 글자가 길게 끼어도 같은 줄이면 찾아요
+            re.compile(rf"(?:{name_re})([^0-9\n]{{0,60}}?){NUM}\s*(%|mg\s*/\s*kg|g\s*/\s*kg)?", re.I),
+            re.compile(rf"(?:{name_re})([^0-9\n]{{0,25}}\n\s*){NUM}\s*(%)", re.I),
         ]
         for pat in pats:
-            m = pat.search(t)
+            # 사이에 다른 성분 이름이 끼면 안 돼요 ('조단백질 Crude Protein'처럼 같은 성분의 영어 이름은 괜찮아요)
+            # '비타민4'처럼 %도 소수점도 없는 숫자는 성분 값이 아니에요
+            m = next((m for m in pat.finditer(t) if set(_keys_in_order(m.group(1))) <= {key}
+                      and (m.group(3) or re.search(r"[.,]", m.group(2)))), None)
             if not m:
                 continue
-            val = _to_float(m.group(1))
-            unit = (m.group(2) or "%").replace(" ", "").lower()
+            raw = m.group(2)
+            val = _to_float(raw)
+            unit = (m.group(3) or "%").replace(" ", "").lower()
             if unit == "mg/kg":
                 val = val / 10000.0        # mg/kg → %
             elif unit == "g/kg":
                 val = val / 10.0           # g/kg → %
+            elif val > PLAUSIBLE[key] and re.fullmatch(r"\d{2,3}", raw) or re.fullmatch(r"0\d", raw):
+                val = _to_float(raw[:-1] + "." + raw[-1])   # 소수점이 빠진 숫자 (8.0% → 80%, 0.7% → 07%)
+            if val == 0:
+                break                      # 0%는 잘못 읽은 값
             if val > PLAUSIBLE[key]:
                 suspect.append({"key": key, "label": label, "value": val, "text": m.group(0).strip()})
             else:

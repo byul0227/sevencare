@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { IconTile, TopBar } from '../components/common.jsx'
 import { AlertIcon, CameraIcon, CheckIcon, EditIcon, InfoIcon, MealIcon } from '../components/Icons.jsx'
 import { api } from '../lib/api.js'
-import { readLabel } from '../lib/ocr.js'
+import { mergeParsed, readLabel } from '../lib/ocr.js'
 
 const FIELDS = [
   ['protein', '조단백질', '이상'], ['fat', '조지방', '이상'], ['fiber', '조섬유', '이하'], ['ash', '조회분', '이하'],
@@ -49,16 +49,15 @@ export default function FoodLabelScreen({ pet, onBack, onToast }) {
     setPhoto(URL.createObjectURL(file))
     setStage('reading')
     try {
-      // 1차: 표에 강한 방식(PSM 6). 성분을 4개 미만으로 찾으면 2차: 자동 배치 방식(PSM 3)으로 다시 읽고 더 나은 쪽을 써요
+      // 1차: 표에 강한 방식(PSM 6). 7개 성분을 다 못 찾으면 2차: 자동 배치 방식(PSM 3)으로 한 번 더 읽고,
+      // 많이 찾은 쪽을 기본으로 빈 칸만 다른 쪽 값으로 채워요 (17장 측정에서 정확도 72% → 80%)
       let text = await readLabel(file, (p, t) => setProgress({ p, text: t }), '6')
       let parsed = await api.parseFoodLabel(text)
-      if (Object.keys(parsed.nutrients).length < 4) {
+      if (Object.keys(parsed.nutrients).length < 7) {
         const text2 = await readLabel(file, (p, t) => setProgress({ p, text: t }), '3')
         const parsed2 = await api.parseFoodLabel(text2)
-        if (Object.keys(parsed2.nutrients).length > Object.keys(parsed.nutrients).length) {
-          text = text2
-          parsed = parsed2
-        }
+        parsed = mergeParsed(parsed, parsed2)
+        text = `${text}\n----- (자동 배치로 다시 읽은 글자) -----\n${text2}`
       }
       setOcrText(text)
       setForm(toForm(parsed.nutrients))
