@@ -66,6 +66,8 @@ export const api = {
   getHealthInfo: () => request('GET', '/api/health-info'),
   getAiStatus: () => request('GET', '/api/ai/status'),
   aiChat: (petId, messages) => request('POST', `/api/pets/${petId}/ai-chat`, { messages }),
+  getAiChatHistory: (petId) => request('GET', `/api/pets/${petId}/ai-chat`),
+  clearAiChat: (petId) => request('DELETE', `/api/pets/${petId}/ai-chat`),
 
   // 프로필 사진
   photoUrl: (pet) => (pet?.photo_version ? `${BASE}/api/pets/${pet.id}/photo?v=${pet.photo_version}` : null),

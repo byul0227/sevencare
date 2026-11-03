@@ -87,3 +87,44 @@ def test_ai_chat_with_gemini_mocked(client, monkeypatch):
     r = client.post(f"/api/pets/{pid}/ai-chat", json={"messages": [{"role": "user", "content": "밥을 잘 안 먹어요"}]})
     assert r.status_code == 200 and "식사량" in r.json()["reply"]
     assert len(calls) == 2 and r.json()["model"] == ai_provider.GEMINI_MODELS[1]
+
+
+def test_ai_chat_history_saved_and_cleared(client, monkeypatch):
+    """답을 받으면 질문·답이 저장되고, 다시 열면 불러올 수 있고, 새 대화로 지울 수 있어요."""
+    from app import ai_provider
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(ai_provider, "_post_json",
+                        lambda url, body, headers, timeout=25: {"candidates": [{"content": {"parts": [{"text": "괜찮아 보여요."}]}}]})
+    pid = make_pet(client)["id"]
+    assert client.get(f"/api/pets/{pid}/ai-chat").json() == []
+    client.post(f"/api/pets/{pid}/ai-chat", json={"messages": [{"role": "user", "content": "물을 많이 마셔요"}]})
+    hist = client.get(f"/api/pets/{pid}/ai-chat").json()
+    assert [(h["role"], h["content"]) for h in hist] == [("user", "물을 많이 마셔요"), ("assistant", "괜찮아 보여요.")]
+    assert client.delete(f"/api/pets/{pid}/ai-chat").status_code == 204
+    assert client.get(f"/api/pets/{pid}/ai-chat").json() == []
+
+
+def test_ai_gives_up_within_time_budget(monkeypatch):
+    """서버가 계속 붐벼도 전체 대기 시간 상한 안에서 멈추고 안내해요 (2분 넘게 기다리지 않게)."""
+    import io
+    import urllib.error
+
+    from app import ai_provider
+
+    clock = {"t": 0.0}
+    monkeypatch.setattr(ai_provider.time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(ai_provider.time, "sleep", lambda s: clock.__setitem__("t", clock["t"] + s))
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+
+    def slow_busy(url, body, headers, timeout=25):
+        clock["t"] += timeout                     # 매번 기다릴 수 있는 만큼 다 기다렸다가 503
+        raise urllib.error.HTTPError(url, 503, "busy", {}, io.BytesIO(b"overloaded"))
+
+    monkeypatch.setattr(ai_provider, "_post_json", slow_busy)
+    try:
+        ai_provider.chat("SYS", [{"role": "user", "content": "안녕"}])
+        assert False, "should raise"
+    except ai_provider.AIError:
+        pass
+    assert clock["t"] <= ai_provider.TOTAL_BUDGET + 5

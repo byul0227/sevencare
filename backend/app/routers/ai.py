@@ -3,7 +3,9 @@
 GET  /api/pets/{id}/body-check   비만도 체크: 최근 체중 · 품종 표준 체중(AKC) · 최근 BCS
 GET  /api/health-info            증상별 '언제 병원에 가야 하나' 정보 (출처 포함)
 GET  /api/ai/status              AI 상담 사용 가능 여부
-POST /api/pets/{id}/ai-chat      AI 상담 (반려견 기록을 요약해 함께 보냄)
+POST /api/pets/{id}/ai-chat      AI 상담 (반려견 기록을 요약해 함께 보냄) — 질문과 답변을 저장해요
+GET  /api/pets/{id}/ai-chat      저장된 상담 기록 (최근 50개)
+DELETE /api/pets/{id}/ai-chat    상담 기록 지우기 (새 대화)
 
 AI 상담은 backend/.env 에 GEMINI_API_KEY(무료) 또는 ANTHROPIC_API_KEY 가 있을 때만 동작해요 (없으면 503).
 모델 호출은 app/ai_provider.py 에 있어요. SEVENCARE_AI_MODEL 로 모델을 바꿀 수 있어요.
@@ -13,7 +15,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,7 +24,7 @@ from .. import ai_provider
 from ..breeds import compare, find_breed
 from ..database import get_db
 from ..health_info import SYMPTOMS
-from ..models import CareCheck, Medication, Pet, Record, VetVisit
+from ..models import AiChat, CareCheck, Medication, Pet, Record, VetVisit
 from .care import to_out as care_out
 from .pets import get_pet_or_404, to_out as pet_out
 from .report import build_report
@@ -159,4 +161,26 @@ def ai_chat(pet_id: int, body: ChatIn, db: Session = Depends(get_db)):
         reply, model = ai_provider.chat(system, [m.model_dump() for m in body.messages])
     except ai_provider.AIError as e:
         raise HTTPException(e.status, str(e))
-    return {"reply": reply or "답변을 만들지 못했어요. 다시 물어봐 주세요.", "model": model}
+    reply = reply or "답변을 만들지 못했어요. 다시 물어봐 주세요."
+    # 답을 받은 경우만 질문과 답을 함께 저장해요 (실패한 질문은 다시 물어볼 수 있게 남기지 않아요)
+    db.add_all([AiChat(pet_id=pet.id, role="user", content=body.messages[-1].content),
+                AiChat(pet_id=pet.id, role="assistant", content=reply)])
+    db.commit()
+    return {"reply": reply, "model": model}
+
+
+@router.get("/pets/{pet_id}/ai-chat")
+def ai_chat_history(pet_id: int, db: Session = Depends(get_db)):
+    get_pet_or_404(db, pet_id)
+    rows = db.scalars(select(AiChat).where(AiChat.pet_id == pet_id)
+                      .order_by(AiChat.id.desc()).limit(50)).all()
+    return [{"role": r.role, "content": r.content, "created_at": r.created_at} for r in reversed(rows)]
+
+
+@router.delete("/pets/{pet_id}/ai-chat", status_code=status.HTTP_204_NO_CONTENT)
+def ai_chat_clear(pet_id: int, db: Session = Depends(get_db)):
+    get_pet_or_404(db, pet_id)
+    for r in db.scalars(select(AiChat).where(AiChat.pet_id == pet_id)).all():
+        db.delete(r)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

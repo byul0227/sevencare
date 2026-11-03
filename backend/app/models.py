@@ -1,5 +1,5 @@
 """DB 테이블 정의: pets(반려동물), records(일일 기록), care_checks(케어 체크), medications(투약 스케줄), vet_visits(병원 방문),
-pet_photos(프로필 사진), pet_play(놀이 탭 상태)."""
+pet_photos(프로필 사진), pet_play(놀이 탭 상태), ai_chats(AI 상담 기록)."""
 from datetime import date, datetime
 from typing import Optional
 
@@ -43,6 +43,9 @@ class Pet(Base):
     )
     play: Mapped[Optional["PetPlay"]] = relationship(
         back_populates="pet", cascade="all, delete-orphan", passive_deletes=True, uselist=False
+    )
+    ai_chats: Mapped[list["AiChat"]] = relationship(
+        back_populates="pet", cascade="all, delete-orphan", passive_deletes=True
     )
 
 
@@ -165,3 +168,17 @@ class PetPlay(Base):
     last_ball_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     pet: Mapped[Pet] = relationship(back_populates="play")
+
+
+class AiChat(Base):
+    """AI 건강 상담 대화 (사용성 테스트 의견: 나갔다 들어오면 대화가 사라져서 불편)."""
+
+    __tablename__ = "ai_chats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pets.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(10))   # user / assistant
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+    pet: Mapped[Pet] = relationship(back_populates="ai_chats")

@@ -234,16 +234,26 @@ export function VetFinderScreen({ pet, onBack }) {
 
 /** AI 건강 상담 채팅 */
 export function AiChatScreen({ pet, onBack }) {
+  const greeting = { role: 'assistant', content: `안녕하세요! ${pet.name}의 최근 기록을 참고해서 답변드릴게요. 어떤 점이 궁금하세요?` }
   const [status, setStatus] = useState(null)
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: `안녕하세요! ${pet.name}의 최근 기록을 참고해서 답변드릴게요. 어떤 점이 궁금하세요?` },
-  ])
+  const [messages, setMessages] = useState([greeting])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [waitSec, setWaitSec] = useState(0)
   const listRef = useRef(null)
 
   useEffect(() => { api.getAiStatus().then(setStatus).catch(() => setStatus({ available: false })) }, [])
+  // 저장된 상담 기록 불러오기 (사용성 테스트 의견: 나갔다 들어오면 대화가 사라짐)
+  useEffect(() => {
+    api.getAiChatHistory(pet.id).then((h) => { if (h.length) setMessages([greeting, ...h]) }).catch(() => {})
+  }, [pet.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { listRef.current?.scrollTo(0, listRef.current.scrollHeight) }, [messages, sending])
+  // 기다린 시간 표시 (사용성 테스트 의견: 답변을 기다릴 때 멈춘 것처럼 보임)
+  useEffect(() => {
+    if (!sending) { setWaitSec(0); return undefined }
+    const t = setInterval(() => setWaitSec((s) => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [sending])
 
   async function send() {
     const text = input.trim()
@@ -253,8 +263,8 @@ export function AiChatScreen({ pet, onBack }) {
     setInput('')
     setSending(true)
     try {
-      // 첫 인사말(assistant)은 빼고, 최근 20개까지만 보내요
-      const history = next.slice(1).slice(-20)
+      // 첫 인사말과 오류 말풍선은 빼고, 최근 20개까지만 보내요
+      const history = next.slice(1).filter((m) => !m.error).map(({ role, content }) => ({ role, content })).slice(-20)
       const res = await api.aiChat(pet.id, history)
       setMessages((m) => [...m, { role: 'assistant', content: res.reply }])
     } catch (e) {
@@ -264,9 +274,20 @@ export function AiChatScreen({ pet, onBack }) {
     }
   }
 
+  async function reset() {
+    if (sending) return
+    try { await api.clearAiChat(pet.id) } catch { /* 지우기 실패해도 화면은 새로 시작 */ }
+    setMessages([greeting])
+  }
+
+  const waitText = waitSec < 8 ? `${pet.name}의 기록을 살펴보는 중`
+    : waitSec < 20 ? '답변을 만드는 중 · 보통 10~20초 걸려요'
+      : '서버가 깨어나는 중이거나 붐벼요 · 최대 40초'
+
   return (
     <div className="screen">
-      <TopBar title="AI 건강 상담" onBack={onBack} />
+      <TopBar title="AI 건강 상담" onBack={onBack}
+        right={messages.length > 1 && <button type="button" className="pill" onClick={reset} disabled={sending}>새 대화</button>} />
       {status && !status.available && (
         <div className="calm-banner" style={{ margin: '6px 22px 4px' }}>
           <p>
@@ -279,7 +300,12 @@ export function AiChatScreen({ pet, onBack }) {
         {messages.map((m, i) => (
           <div key={i} className={`chat-bubble ${m.role === 'user' ? 'user' : 'ai'}${m.error ? ' error' : ''}`}>{m.content}</div>
         ))}
-        {sending && <div className="chat-bubble ai typing">기록을 살펴보는 중…</div>}
+        {sending && (
+          <div className="chat-bubble ai typing" role="status">
+            <span className="dots" aria-hidden="true"><i /><i /><i /></span>
+            <span>{waitText} · {waitSec}초</span>
+          </div>
+        )}
       </div>
       <p className="scale-source" style={{ margin: '0 22px' }}>AI 답변은 참고용이며 진단을 대신하지 않아요. 응급 상황이면 바로 병원에 연락하세요.</p>
       <div className="chat-input-row">

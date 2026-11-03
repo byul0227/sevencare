@@ -18,6 +18,8 @@ import urllib.request
 
 GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]  # 무료 티어 Flash 계열
 RETRY_WAITS = [0, 2, 4]  # 서버 혼잡(503)이면 같은 모델로 잠깐 쉬었다 다시 시도 (초)
+TOTAL_BUDGET = 40        # 재시도를 모두 합쳐 이 시간(초)을 넘기면 멈추고 안내해요 (사용성 테스트: 2분 넘게 기다린 사례)
+PER_TRY_TIMEOUT = 25     # 요청 한 번에 기다리는 최대 시간(초)
 CLAUDE_MODEL = "claude-sonnet-5"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -87,19 +89,23 @@ def _gemini(system: str, messages: list[dict]) -> tuple[str, str]:
     body = to_gemini_body(system, messages)
     last = AIError("AI 응답을 받지 못했어요. 잠시 뒤 다시 시도해 주세요.")
     attempts = [(m, w) for m in model_candidates() for w in RETRY_WAITS]
+    deadline = time.monotonic() + TOTAL_BUDGET
     for i, (model, wait) in enumerate(attempts):
         if wait:
             if not isinstance(last, AIBusy):
                 continue  # 혼잡(503)일 때만 같은 모델 재시도
             time.sleep(wait)
+        left = deadline - time.monotonic()
+        if left < 3:
+            raise AIError("AI 서버가 붐벼서 답변이 늦어지고 있어요. 잠시 뒤 다시 물어봐 주세요.", 504)
         try:
             try:
-                data = _post_json(GEMINI_URL.format(model=model), body, {"x-goog-api-key": key})
+                data = _post_json(GEMINI_URL.format(model=model), body, {"x-goog-api-key": key}, timeout=min(PER_TRY_TIMEOUT, left))
             except urllib.error.HTTPError as e:
                 # 생각 단계 설정을 모르는 모델이면 그 설정만 빼고 한 번 더
                 if e.code == 400 and "thinking" in e.read().decode("utf-8", "ignore").lower():
                     plain = {**body, "generationConfig": {k: v for k, v in body["generationConfig"].items() if k != "thinkingConfig"}}
-                    data = _post_json(GEMINI_URL.format(model=model), plain, {"x-goog-api-key": key})
+                    data = _post_json(GEMINI_URL.format(model=model), plain, {"x-goog-api-key": key}, timeout=min(PER_TRY_TIMEOUT, left))
                 else:
                     raise
         except urllib.error.HTTPError as e:
